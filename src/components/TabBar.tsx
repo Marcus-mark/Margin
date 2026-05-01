@@ -1,53 +1,33 @@
-import { useState } from 'react'
-import { Home, X, Plus } from 'lucide-react'
+import { Home, Plus, X } from 'lucide-react'
 
-type Tab = { id: string; name: string }
+type Simulation = { id: string; name: string }
 
-const PLACEHOLDER_TABS: Tab[] = [
-  { id: '1', name: 'ETH LP Simulation' },
-]
-
-type TabBarProps = {
-  onViewChange?: (view: 'home' | 'simulation') => void
+type SubHeaderProps = {
+  simulations: Simulation[]
+  activeId: string | null
+  showNav: boolean
+  onTabClick: (id: string) => void
+  onTabClose: (id: string) => void
+  onHome: () => void
+  onNew: () => void
 }
 
-export default function TabBar({ onViewChange }: TabBarProps) {
-  const [tabs, setTabs] = useState<Tab[]>(PLACEHOLDER_TABS)
-  const [activeView, setActiveView] = useState<string>('1')
-
-  // Hidden entirely when no simulations are open
-  if (tabs.length === 0) return null
-
-  const isHome = activeView === 'home'
-
-  const handleHomeClick = () => {
-    setActiveView('home')
-    onViewChange?.('home')
-  }
-
-  const handleTabClick = (id: string) => {
-    setActiveView(id)
-    onViewChange?.('simulation')
-  }
-
-  const closeTab = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    const remaining = tabs.filter(t => t.id !== id)
-    setTabs(remaining)
-    if (activeView === id) {
-      const next = remaining.length > 0 ? remaining[remaining.length - 1].id : 'home'
-      setActiveView(next)
-      onViewChange?.(next === 'home' ? 'home' : 'simulation')
-    }
-  }
-
+export default function SubHeader({
+  simulations,
+  activeId,
+  showNav,
+  onTabClick,
+  onTabClose,
+  onHome,
+  onNew,
+}: SubHeaderProps) {
   return (
-    <div className="w-full bg-carbon border-b border-border-default flex items-stretch h-10">
+    <div className="w-full bg-carbon border-b border-border-default flex items-stretch h-10 shrink-0">
 
-      {/* Home icon — hidden when already on Home */}
-      {!isHome && (
+      {/* Home — only in simulation view */}
+      {showNav && (
         <button
-          onClick={handleHomeClick}
+          onClick={onHome}
           className="flex items-center justify-center w-10 border-r border-border-default text-dust hover:text-bone transition-colors shrink-0"
         >
           <Home size={14} />
@@ -56,22 +36,22 @@ export default function TabBar({ onViewChange }: TabBarProps) {
 
       {/* Simulation tabs */}
       <div className="flex items-stretch">
-        {tabs.map(tab => {
-          const active = activeView === tab.id
+        {simulations.map(sim => {
+          const active = sim.id === activeId
           return (
             <div
-              key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
+              key={sim.id}
+              onClick={() => onTabClick(sim.id)}
               className={[
-                'flex items-center gap-2 px-3 cursor-pointer text-xs select-none transition-colors',
+                'flex items-center gap-2 px-4 cursor-pointer select-none border-r border-border-default text-xs transition-colors',
                 active
-                  ? 'bg-graphite border border-border-default text-bone'
-                  : 'border-r border-border-default text-dust hover:text-bone',
+                  ? 'border-t-2 border-t-bone bg-graphite text-bone'
+                  : 'border-t-2 border-t-transparent text-dust hover:text-bone hover:bg-graphite/50',
               ].join(' ')}
             >
-              <span>{tab.name}</span>
+              <span>{sim.name}</span>
               <button
-                onClick={(e) => closeTab(tab.id, e)}
+                onClick={e => { e.stopPropagation(); onTabClose(sim.id) }}
                 className="flex items-center text-dust hover:text-bone transition-colors"
               >
                 <X size={11} />
@@ -81,10 +61,14 @@ export default function TabBar({ onViewChange }: TabBarProps) {
         })}
       </div>
 
-      {/* New simulation — hidden when on Home */}
-      {!isHome && (
-        <button className="flex items-center justify-center w-10 text-dust hover:text-bone transition-colors shrink-0">
-          <Plus size={14} />
+      {/* New simulation — only in simulation view, sits right after tabs */}
+      {showNav && (
+        <button
+          onClick={onNew}
+          className="flex items-center gap-1.5 px-3 border-r border-border-default text-dust hover:text-bone transition-colors shrink-0"
+        >
+          <Plus size={13} />
+          <span className="text-xs">New Simulation</span>
         </button>
       )}
 
