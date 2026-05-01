@@ -22,8 +22,15 @@ export default function ScenarioSetup() {
   // Seed the store with the baseline scenario on first render
   useEffect(() => {
     if (!config?.marketScenario) {
-      setConfig({ marketScenario: 'baseline' })
-      setScenarioModifiers({ ...PRESET_MAP['baseline'].modifiers })
+      const baseline = PRESET_MAP['baseline']
+      setConfig({
+        marketScenario: 'baseline',
+        upperBand:   baseline.upperBand,
+        lowerBand:   baseline.lowerBand,
+        volatility:  baseline.volatility,
+        correlation: baseline.correlation,
+      })
+      setScenarioModifiers({ ...baseline.modifiers })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -33,8 +40,8 @@ export default function ScenarioSetup() {
 
   // Band values stored as formatted strings (e.g. "-25", "+12")
   const baseline = PRESET_MAP['baseline']
-  const [upperValue, setUpperValue]           = useState(fmtBand(baseline.upperBand))
-  const [lowerValue, setLowerValue]           = useState(fmtBand(baseline.lowerBand))
+  const [upperValue, setUpperValue]             = useState(fmtBand(baseline.upperBand))
+  const [lowerValue, setLowerValue]             = useState(fmtBand(baseline.lowerBand))
   const [upperWindowStart, setUpperWindowStart] = useState(() => windowFor(baseline.upperBand, BAND_PRESETS.length, WINDOW))
   const [lowerWindowStart, setLowerWindowStart] = useState(() => windowFor(baseline.lowerBand, BAND_PRESETS.length, WINDOW))
 
@@ -42,8 +49,39 @@ export default function ScenarioSetup() {
   const [correlation, setCorrelation] = useState(baseline.correlation)
   const [timePeriod, setTimePeriod]   = useState('')
 
+  // ── Handlers that sync local state + store ──────────────────────────────────
+
+  const handleUpperChange = (v: string) => {
+    setUpperValue(v)
+    const n = parseFloat(v)
+    if (!isNaN(n)) setConfig({ upperBand: n })
+  }
+
+  const handleLowerChange = (v: string) => {
+    setLowerValue(v)
+    const n = parseFloat(v)
+    if (!isNaN(n)) setConfig({ lowerBand: n })
+  }
+
+  const handleVolatilityChange = (v: string) => {
+    setVolatility(v)
+    setConfig({ volatility: v })
+  }
+
+  const handleCorrelationChange = (v: string) => {
+    setCorrelation(v)
+    setConfig({ correlation: v })
+  }
+
+  const handleTimePeriodChange = (v: string) => {
+    setTimePeriod(v)
+    const n = parseInt(v, 10)
+    if (!isNaN(n) && n >= 1) setConfig({ timePeriodDays: n })
+  }
+
+  // ── Preset application ──────────────────────────────────────────────────────
+
   const applyPreset = (preset: ScenarioPreset) => {
-    // Only auto-fill fields for named presets, not custom slots
     if (!preset.isCustom) {
       setUpperValue(fmtBand(preset.upperBand))
       setLowerValue(fmtBand(preset.lowerBand))
@@ -51,22 +89,28 @@ export default function ScenarioSetup() {
       setLowerWindowStart(windowFor(preset.lowerBand, BAND_PRESETS.length, WINDOW))
       setVolatility(preset.volatility)
       setCorrelation(preset.correlation)
+      setConfig({
+        upperBand:   preset.upperBand,
+        lowerBand:   preset.lowerBand,
+        volatility:  preset.volatility,
+        correlation: preset.correlation,
+      })
     }
 
     setScenarioModifiers({ ...preset.modifiers })
 
     const scenarioMap: Record<string, 'baseline' | 'bull' | 'bear' | 'high_volatility' | 'black_swan'> = {
-      baseline:             'baseline',
-      sharp_drawdown:       'black_swan',
-      gradual_bear:         'bear',
-      sideways_vol:         'high_volatility',
-      bull_expansion:       'bull',
-      liquidity_shock:      'black_swan',
-      correlation_breakdown:'high_volatility',
-      low_vol:              'baseline',
-      flash_crash:          'black_swan',
-      custom_a:             'baseline',
-      custom_b:             'baseline',
+      baseline:              'baseline',
+      sharp_drawdown:        'black_swan',
+      gradual_bear:          'bear',
+      sideways_vol:          'high_volatility',
+      bull_expansion:        'bull',
+      liquidity_shock:       'black_swan',
+      correlation_breakdown: 'high_volatility',
+      low_vol:               'baseline',
+      flash_crash:           'black_swan',
+      custom_a:              'baseline',
+      custom_b:              'baseline',
     }
     setConfig({ marketScenario: scenarioMap[preset.id] ?? 'baseline' })
   }
@@ -152,7 +196,7 @@ export default function ScenarioSetup() {
               <BandRow
                 label="Upper Band"
                 value={upperValue}
-                onChange={setUpperValue}
+                onChange={handleUpperChange}
                 windowStart={upperWindowStart}
                 onWindowChange={setUpperWindowStart}
               />
@@ -163,7 +207,7 @@ export default function ScenarioSetup() {
               <BandRow
                 label="Lower Band"
                 value={lowerValue}
-                onChange={setLowerValue}
+                onChange={handleLowerChange}
                 windowStart={lowerWindowStart}
                 onWindowChange={setLowerWindowStart}
               />
@@ -173,7 +217,7 @@ export default function ScenarioSetup() {
             <DropdownRow
               label="Volatility Level"
               value={volatility}
-              onChange={setVolatility}
+              onChange={handleVolatilityChange}
               options={VOLATILITY_OPTIONS}
             />
 
@@ -181,7 +225,7 @@ export default function ScenarioSetup() {
             <DropdownRow
               label="Asset Correlation Behaviour"
               value={correlation}
-              onChange={setCorrelation}
+              onChange={handleCorrelationChange}
               options={CORRELATION_OPTIONS}
             />
 
@@ -195,7 +239,7 @@ export default function ScenarioSetup() {
                   max={3650}
                   placeholder="30"
                   value={timePeriod}
-                  onChange={e => setTimePeriod(e.target.value)}
+                  onChange={e => handleTimePeriodChange(e.target.value)}
                   className="w-14 bg-transparent text-xs text-bone placeholder:text-dust text-right outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <span className="text-xs text-dust select-none">days</span>

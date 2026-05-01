@@ -30,7 +30,7 @@ const OPTIONS: {
 
 export default function StrategySelection() {
   const { config, setConfig, state } = useSimulationStore()
-  const active = config?.strategy ?? null
+  const active   = config?.strategy ?? null
   const isLocked = state !== 'INIT' && state !== 'CONFIG'
 
   const [lpFeeApr, setLpFeeApr] = useState('')
@@ -41,6 +41,28 @@ export default function StrategySelection() {
   const select = (id: Strategy) => {
     if (isLocked) return
     setConfig({ strategy: id })
+  }
+
+  const handleStakeApyChange = (v: string) => {
+    setStakeApy(v)
+    const n = parseFloat(v)
+    setConfig({ stakeApy: isNaN(n) ? null : n })
+  }
+
+  const handleLpFeeAprChange = (v: string) => {
+    setLpFeeApr(v)
+    const n = parseFloat(v)
+    setConfig({ lpFeeApr: isNaN(n) ? null : n })
+  }
+
+  const handleAssetAChange = (v: string) => {
+    setAssetA(v)
+    setConfig({ assetA: v })
+  }
+
+  const handleAssetBChange = (v: string) => {
+    setAssetB(v)
+    setConfig({ assetB: v })
   }
 
   return (
@@ -97,7 +119,7 @@ export default function StrategySelection() {
       {active === 'stake_lend' && (
         <div className="border border-border-default rounded-lg overflow-hidden">
           <ExtraRow label="Stake APY">
-            <PercentInput value={stakeApy} onChange={setStakeApy} placeholder="0.00" />
+            <PercentInput value={stakeApy} onChange={handleStakeApyChange} placeholder="0.00" />
           </ExtraRow>
         </div>
       )}
@@ -106,13 +128,13 @@ export default function StrategySelection() {
       {active === 'provide_liquidity' && (
         <div className="border border-border-default rounded-lg overflow-hidden divide-y divide-border-default">
           <ExtraRow label="LP Fee APR">
-            <PercentInput value={lpFeeApr} onChange={setLpFeeApr} placeholder="0.00" />
+            <PercentInput value={lpFeeApr} onChange={handleLpFeeAprChange} placeholder="0.00" />
           </ExtraRow>
           <ExtraRow label="Asset A">
-            <SymbolInput value={assetA} onChange={setAssetA} placeholder="ETH" />
+            <SymbolInput value={assetA} onChange={handleAssetAChange} placeholder="ETH" />
           </ExtraRow>
           <ExtraRow label="Asset B">
-            <SymbolInput value={assetB} onChange={setAssetB} placeholder="USDC" />
+            <SymbolInput value={assetB} onChange={handleAssetBChange} placeholder="USDC" />
           </ExtraRow>
         </div>
       )}

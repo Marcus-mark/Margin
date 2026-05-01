@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { SimulationResult } from '../types'
 import type { ScenarioModifiers } from '../data/scenarioPresets'
 
 export type { ScenarioModifiers }
@@ -27,37 +28,32 @@ export type MarketScenario =
 export type Asset = { id: string; symbol: string; allocation: string }
 
 export interface SimulationConfig {
-  name: string
-  capitalAllocation: number
-  assets: Asset[]
-  strategy: Strategy | null
-  marketScenario: MarketScenario | null
+  // Core
+  name:               string
+  capitalAllocation:  number
+  assets:             Asset[]
+  strategy:           Strategy | null
+  marketScenario:     MarketScenario | null
   riskParameters: {
-    leverageCap: number | null
-    exposureCap: number | null
+    leverageCap:           number | null
+    exposureCap:           number | null
     volatilitySensitivity: number | null
   }
+  // Scenario details (set by ScenarioSetup)
+  upperBand:      number   // price ceiling %, e.g. 12
+  lowerBand:      number   // price floor %,   e.g. -10
+  volatility:     string
+  correlation:    string
+  timePeriodDays: number
+  // Strategy-specific (set by StrategySelection)
+  stakeApy:  number | null
+  lpFeeApr:  number | null
+  assetA:    string
+  assetB:    string
 }
 
-const DEFAULT_CONFIG: SimulationConfig = {
-  name: '',
-  capitalAllocation: 0,
-  assets: [],
-  strategy: null,
-  marketScenario: null,
-  riskParameters: { leverageCap: null, exposureCap: null, volatilitySensitivity: null },
-}
-
-export interface SimulationResults {
-  expectedYieldMin: number
-  expectedYieldMax: number
-  riskLevel: 'low' | 'moderate' | 'high' | 'critical' | 'extreme'
-  maxDrawdown: number
-  sharpeRatio: number
-  impermanentLoss: number | null
-  timeHorizonDays: number
-  computedAt: string
-}
+// Re-export the engine result type as the canonical results shape
+export type SimulationResults = SimulationResult
 
 export interface SimulationError {
   code: string
@@ -65,40 +61,60 @@ export interface SimulationError {
   detail?: string
 }
 
+// ─── Defaults ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_CONFIG: SimulationConfig = {
+  name:              '',
+  capitalAllocation: 0,
+  assets:            [],
+  strategy:          null,
+  marketScenario:    null,
+  riskParameters:    { leverageCap: null, exposureCap: null, volatilitySensitivity: null },
+  upperBand:         12,
+  lowerBand:         -10,
+  volatility:        'Medium',
+  correlation:       'Moderate Correlation',
+  timePeriodDays:    30,
+  stakeApy:          null,
+  lpFeeApr:          null,
+  assetA:            '',
+  assetB:            '',
+}
+
 // ─── Store shape ──────────────────────────────────────────────────────────────
 
 interface SimulationState {
-  state: SimulationPhase
-  config: SimulationConfig | null
+  state:   SimulationPhase
+  config:  SimulationConfig | null
   results: SimulationResults | null
-  error: SimulationError | null
-  saveId: string | null
+  error:   SimulationError | null
+  saveId:  string | null
   version: number
   isStale: boolean
 
   scenarioModifiers: ScenarioModifiers | null
 
   // Actions
-  setConfig: (partial: Partial<SimulationConfig>) => void
-  setScenarioModifiers: (m: ScenarioModifiers | null) => void
-  startRun: () => void
-  setResults: (results: SimulationResults) => void
-  setError: (error: SimulationError) => void
-  editInputs: () => void
-  saveSimulation: (saveId: string) => void
-  reset: () => void
+  setConfig:           (partial: Partial<SimulationConfig>) => void
+  setScenarioModifiers:(m: ScenarioModifiers | null) => void
+  startRun:            () => void
+  setResults:          (results: SimulationResults) => void
+  setError:            (error: SimulationError) => void
+  editInputs:          () => void
+  saveSimulation:      (saveId: string) => void
+  reset:               () => void
 }
 
 // ─── Initial state ────────────────────────────────────────────────────────────
 
 const INITIAL_STATE = {
-  state: 'INIT' as SimulationPhase,
-  config: null,
-  results: null,
-  error: null,
-  saveId: null,
-  version: 1,
-  isStale: false,
+  state:             'INIT' as SimulationPhase,
+  config:            null,
+  results:           null,
+  error:             null,
+  saveId:            null,
+  version:           1,
+  isStale:           false,
   scenarioModifiers: null,
 }
 
@@ -110,8 +126,8 @@ export const useSimulationStore = create<SimulationState>()((set, get) => ({
   setConfig: (partial) =>
     set(s => ({
       config: { ...DEFAULT_CONFIG, ...(s.config ?? {}), ...partial },
-      state: 'CONFIG' as SimulationPhase,
-      error: null,
+      state:  'CONFIG' as SimulationPhase,
+      error:  null,
     })),
 
   setScenarioModifiers: (m) =>

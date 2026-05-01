@@ -1,5 +1,7 @@
 import { ArrowUpRight } from 'lucide-react'
 import { useSimulationStore, type SimulationPhase } from '../store/simulationStore'
+import { runSimulation } from '../engine'
+import type { SimulationConfig as EngineConfig } from '../types'
 import InputPanel from './InputPanel'
 
 const STATE_MESSAGES: Record<SimulationPhase, string> = {
@@ -12,7 +14,7 @@ const STATE_MESSAGES: Record<SimulationPhase, string> = {
 }
 
 export default function SimulationWorkspace() {
-  const { state } = useSimulationStore()
+  const { state, error } = useSimulationStore()
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -30,7 +32,9 @@ export default function SimulationWorkspace() {
       {/* Right panel — outputs */}
       <div className="flex flex-1 items-center justify-center px-8 bg-carbon overflow-y-auto">
         <p className="text-sm text-dust text-center max-w-sm">
-          {STATE_MESSAGES[state]}
+          {state === 'ERROR' && error?.message
+            ? error.message
+            : STATE_MESSAGES[state]}
         </p>
       </div>
 
@@ -41,7 +45,10 @@ export default function SimulationWorkspace() {
 // ── Run / Edit button ─────────────────────────────────────────────────────────
 
 function RunButton() {
-  const { state, config, startRun, editInputs } = useSimulationStore()
+  const {
+    state, config, scenarioModifiers,
+    startRun, setResults, setError, editInputs,
+  } = useSimulationStore()
 
   const editable = state === 'INIT' || state === 'CONFIG'
 
@@ -50,6 +57,42 @@ function RunButton() {
     && (config?.capitalAllocation ?? 0) >= 10
     && !!config?.strategy
     && !!config?.marketScenario
+
+  const handleRun = async () => {
+    if (!canRun || !config) return
+    startRun()
+
+    const engineConfig: EngineConfig = {
+      name:              config.name,
+      capitalAllocation: config.capitalAllocation,
+      assets:            config.assets,
+      strategy:          config.strategy!,
+      marketScenario:    config.marketScenario!,
+      riskParameters:    config.riskParameters,
+      scenarioModifiers: scenarioModifiers ?? {
+        stressValue:          '1.0x',
+        tailRisk:             '1.0x',
+        rebalanceSensitivity: 'Medium',
+      },
+      upperBand:      config.upperBand,
+      lowerBand:      config.lowerBand,
+      volatility:     config.volatility as EngineConfig['volatility'],
+      correlation:    config.correlation,
+      timePeriodDays: config.timePeriodDays,
+      stakeApy:       config.stakeApy  ?? undefined,
+      lpFeeApr:       config.lpFeeApr  ?? undefined,
+      assetA:         config.assetA,
+      assetB:         config.assetB,
+    }
+
+    try {
+      const result = await runSimulation(engineConfig)
+      setResults(result)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError({ code: 'CALC_ERROR', message })
+    }
+  }
 
   // After a run completes or errors, offer to go back to editing
   if (state === 'COMPUTED' || state === 'SAVED' || state === 'ERROR') {
@@ -65,7 +108,7 @@ function RunButton() {
 
   return (
     <button
-      onClick={() => canRun && startRun()}
+      onClick={handleRun}
       disabled={!canRun || state === 'RUNNING'}
       className={[
         'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors',
