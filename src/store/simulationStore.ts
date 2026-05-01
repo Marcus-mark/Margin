@@ -1,4 +1,7 @@
 import { create } from 'zustand'
+import type { ScenarioModifiers } from '../data/scenarioPresets'
+
+export type { ScenarioModifiers }
 
 // ─── Simulation lifecycle states ─────────────────────────────────────────────
 
@@ -21,16 +24,28 @@ export type MarketScenario =
   | 'high_volatility'
   | 'black_swan'
 
+export type Asset = { id: string; symbol: string; allocation: string }
+
 export interface SimulationConfig {
   name: string
   capitalAllocation: number
-  strategy: Strategy
-  marketScenario: MarketScenario
+  assets: Asset[]
+  strategy: Strategy | null
+  marketScenario: MarketScenario | null
   riskParameters: {
     leverageCap: number | null
     exposureCap: number | null
     volatilitySensitivity: number | null
   }
+}
+
+const DEFAULT_CONFIG: SimulationConfig = {
+  name: '',
+  capitalAllocation: 0,
+  assets: [],
+  strategy: null,
+  marketScenario: null,
+  riskParameters: { leverageCap: null, exposureCap: null, volatilitySensitivity: null },
 }
 
 export interface SimulationResults {
@@ -61,8 +76,11 @@ interface SimulationState {
   version: number
   isStale: boolean
 
+  scenarioModifiers: ScenarioModifiers | null
+
   // Actions
-  setConfig: (config: SimulationConfig) => void
+  setConfig: (partial: Partial<SimulationConfig>) => void
+  setScenarioModifiers: (m: ScenarioModifiers | null) => void
   startRun: () => void
   setResults: (results: SimulationResults) => void
   setError: (error: SimulationError) => void
@@ -81,6 +99,7 @@ const INITIAL_STATE = {
   saveId: null,
   version: 1,
   isStale: false,
+  scenarioModifiers: null,
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -88,8 +107,15 @@ const INITIAL_STATE = {
 export const useSimulationStore = create<SimulationState>()((set, get) => ({
   ...INITIAL_STATE,
 
-  setConfig: (config) =>
-    set({ config, state: 'CONFIG', error: null }),
+  setConfig: (partial) =>
+    set(s => ({
+      config: { ...DEFAULT_CONFIG, ...(s.config ?? {}), ...partial },
+      state: 'CONFIG' as SimulationPhase,
+      error: null,
+    })),
+
+  setScenarioModifiers: (m) =>
+    set({ scenarioModifiers: m }),
 
   startRun: () =>
     set({ state: 'RUNNING', error: null }),
@@ -100,10 +126,9 @@ export const useSimulationStore = create<SimulationState>()((set, get) => ({
   setError: (error) =>
     set({ error, state: 'ERROR' }),
 
-  // Only valid from COMPUTED or SAVED — guards against accidental calls
   editInputs: () => {
     const { state } = get()
-    if (state !== 'COMPUTED' && state !== 'SAVED') return
+    if (state !== 'COMPUTED' && state !== 'SAVED' && state !== 'ERROR') return
     set({ state: 'CONFIG', isStale: true })
   },
 
