@@ -17,7 +17,7 @@ export interface RiskCalculation {
   volatilityExposure: number                          // 0 – 2.0 after stress amplification
   compositeScore:     number                          // 0 – 100
   riskLevel:          'moderate' | 'high' | 'critical'
-  yieldRiskOffset:    null                            // reserved — not yet calculated
+  yieldRiskOffset:    number | null                   // populated by yieldEngine after yield is calculated
 }
 
 // ── Pure calculation ──────────────────────────────────────────────────────────

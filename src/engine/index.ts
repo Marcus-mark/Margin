@@ -1,11 +1,47 @@
-import type { SimulationConfig, SimulationResult, ILResult } from '../types'
-import { runScenarioEngine } from './scenarioEngine'
-import { runILModule }       from './ilModule'
-import { runDrawdownEngine } from './drawdownEngine'
-import { runRiskEngine }     from './riskEngine'
-import { runYieldEngine }    from './yieldEngine'
+import type { SimulationConfig, SimulationResult } from '../types'
+import { buildScenario }    from './scenarioEngine'
+import { calculateIL }      from './ilModule'
+import { calculateDrawdown } from './drawdownEngine'
+import { calculateRisk }    from './riskEngine'
+import { calculateYield }   from './yieldEngine'
 
-// ─── Validation ───────────────────────────────────────────────────────────────
+// ── Config → engine-parameter helpers ────────────────────────────────────────
+
+function toVolatilityLevel(v: string): 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME' {
+  const map: Record<string, 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME'> = {
+    Low: 'LOW', Medium: 'MEDIUM', High: 'HIGH', Extreme: 'EXTREME',
+  }
+  return map[v] ?? 'MEDIUM'
+}
+
+function toCorrelationBehavior(c: string): 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' {
+  if (c === 'High Correlation')                              return 'POSITIVE'
+  if (c === 'Low Correlation' || c === 'Negative Correlation') return 'NEGATIVE'
+  return 'NEUTRAL'  // 'Moderate Correlation'
+}
+
+function toStrategyType(s: string): 'HOLD' | 'LP' | 'STAKE' {
+  if (s === 'provide_liquidity') return 'LP'
+  if (s === 'stake_lend')        return 'STAKE'
+  return 'HOLD'
+}
+
+function parseMultiplier(s: string): number {
+  // '1.5x' → 1.5
+  return parseFloat(s.replace('x', ''))
+}
+
+function normaliseTailRisk(s: string): number {
+  // '0.5x'→0.25  '1.0x'→0.50  '1.5x'→0.75  '2.0x'→1.00
+  return parseMultiplier(s) / 2
+}
+
+function normaliseRebalance(s: string): number {
+  const map: Record<string, number> = { Low: 0.25, Medium: 0.5, High: 1.0 }
+  return map[s] ?? 0.5
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
 
 function validate(config: SimulationConfig): void {
   if (!config.name?.trim())
@@ -30,62 +66,125 @@ function validate(config: SimulationConfig): void {
     throw new Error('Upper band must be greater than or equal to lower band')
 }
 
-// ─── Orchestrator ─────────────────────────────────────────────────────────────
+// ── Orchestrator ──────────────────────────────────────────────────────────────
 
 export async function runSimulation(config: SimulationConfig): Promise<SimulationResult> {
-  // Validation errors propagate as-is (not wrapped)
+  // Validation errors propagate directly (not wrapped in "Calculation failed:")
   validate(config)
 
   try {
-    // 1. Scenario
-    const scenario = await runScenarioEngine(config)
+    const strategy   = toStrategyType(config.strategy)
+    const mods       = config.scenarioModifiers
+    const stressAmp  = parseMultiplier(mods.stressValue)
+    const tailRisk   = normaliseTailRisk(mods.tailRisk)
+    const rebalance  = normaliseRebalance(mods.rebalanceSensitivity)
+    const volLevel   = toVolatilityLevel(config.volatility)
+    const corrBehav  = toCorrelationBehavior(config.correlation)
 
-    // 2. Impermanent loss — LP strategy only
-    let il: ILResult | undefined
-    if (config.strategy === 'provide_liquidity') {
-      il = await runILModule(config, scenario)
+    // ── 1. Scenario ───────────────────────────────────────────────────────────
+    // Store saves bands as integer percentages (e.g. -10, +12); engine wants decimals
+    const scenario = buildScenario(
+      config.lowerBand / 100,
+      config.upperBand / 100,
+      volLevel,
+      corrBehav,
+      stressAmp,
+      tailRisk,
+      rebalance,
+      config.timePeriodDays,
+    )
+
+    // ── 2. Impermanent loss (LP only) ─────────────────────────────────────────
+    // Prices are normalised to 1; final price derived from worst-case path
+    type ILCalc = ReturnType<typeof calculateIL>
+    let il: ILCalc | null = null
+
+    if (strategy === 'LP') {
+      il = calculateIL(
+        1,                                          // initialPriceA (normalised)
+        1,                                          // initialPriceB (stable, e.g. USDC)
+        1 + scenario.worstCasePriceChangePct,       // finalPriceA
+        1,                                          // finalPriceB (assumed stable)
+        config.lpFeeApr ?? 0,
+        config.timePeriodDays,
+        config.capitalAllocation,
+      )
     }
 
-    // 3. Drawdown
-    const drawdown = await runDrawdownEngine(config, scenario)
+    // ilPercent from calculateIL is a percentage (e.g. -5.72);
+    // drawdown and yield engines expect a decimal (e.g. -0.0572)
+    const ilDecimal = il ? il.ilPercent / 100 : 0
 
-    // 4. Risk
-    const risk = await runRiskEngine(config, scenario, drawdown, il)
+    // ── 3. Drawdown ───────────────────────────────────────────────────────────
+    const drawdown = calculateDrawdown(
+      config.capitalAllocation,
+      scenario.worstCasePriceChangePct,
+      config.timePeriodDays,
+      strategy,
+      ilDecimal,
+    )
 
-    // 5. Yield
-    const yld = await runYieldEngine(config, scenario, risk, il)
+    // ── 4. Risk ───────────────────────────────────────────────────────────────
+    const risk = calculateRisk(
+      config.capitalAllocation,
+      drawdown.maxDrawdownPct,
+      drawdown.maxDrawdownUSD,
+      drawdown.drawdownDurationDays,
+      drawdown.timeToRecoveryDays,
+      volLevel,
+      stressAmp,
+      tailRisk,
+    )
 
-    // Combine into one results object
+    // ── 5. Yield ──────────────────────────────────────────────────────────────
+    const yld = calculateYield(
+      strategy,
+      config.stakeApy ?? null,
+      config.lpFeeApr ?? null,
+      config.timePeriodDays,
+      config.capitalAllocation,
+      ilDecimal,
+      risk.capitalAtRiskPct,
+    )
+
+    // ── Combine all results ───────────────────────────────────────────────────
     return {
       // Scenario
-      priceReturnMin:    scenario.priceReturnMin,
-      priceReturnMax:    scenario.priceReturnMax,
-      volatilityScore:   scenario.volatilityScore,
-      correlationFactor: scenario.correlationFactor,
-      stressMultiplier:  scenario.stressMultiplier,
+      worstCasePriceChangePct:  scenario.worstCasePriceChangePct,
+      expectedPriceChangePct:   scenario.expectedPriceChangePct,
+      bestCasePriceChangePct:   scenario.bestCasePriceChangePct,
+      rebalanceImpactPct:       scenario.rebalanceImpactPct,
+      volatilityScalar:         scenario.volatilityScalar,
 
-      // IL (null when not LP)
-      impermanentLoss: il?.impermanentLoss ?? null,
-      ilSeverity:      il?.ilSeverity      ?? null,
-      breakEvenDays:   il?.breakEvenDays   ?? null,
+      // IL (null for non-LP)
+      ilPercent:      il?.ilPercent      ?? null,
+      ilUSD:          il?.ilUSD          ?? null,
+      holdValueUSD:   il?.holdValueUSD   ?? null,
+      lpValueUSD:     il?.lpValueUSD     ?? null,
+      feeIncomeUSD:   il?.feeIncomeUSD   ?? null,
+      netPositionUSD: il?.netPositionUSD ?? null,
 
       // Drawdown
-      maxDrawdown:      drawdown.maxDrawdown,
-      expectedDrawdown: drawdown.expectedDrawdown,
-      drawdownDuration: drawdown.drawdownDuration,
-      recoveryDays:     drawdown.recoveryDays,
+      maxDrawdownPct:       drawdown.maxDrawdownPct,
+      maxDrawdownUSD:       drawdown.maxDrawdownUSD,
+      drawdownDurationDays: drawdown.drawdownDurationDays,
+      timeToRecoveryDays:   drawdown.timeToRecoveryDays,
 
       // Risk
-      riskLevel:                risk.riskLevel,
-      sharpeRatio:              risk.sharpeRatio,
-      volatilityAdjustedReturn: risk.volatilityAdjustedReturn,
-      tailRiskScore:            risk.tailRiskScore,
+      capitalAtRiskUSD:   risk.capitalAtRiskUSD,
+      capitalAtRiskPct:   risk.capitalAtRiskPct,
+      volatilityExposure: risk.volatilityExposure,
+      compositeScore:     risk.compositeScore,
+      riskLevel:          risk.riskLevel,
+      yieldRiskOffset:    yld.yieldRiskOffset,   // populated here from yieldEngine
 
       // Yield
-      expectedYieldMin: yld.expectedYieldMin,
-      expectedYieldMax: yld.expectedYieldMax,
-      annualizedYield:  yld.annualizedYield,
-      yieldSource:      yld.yieldSource,
+      grossYieldPct:         yld.grossYieldPct,
+      grossYieldUSD:         yld.grossYieldUSD,
+      netYieldPct:           yld.netYieldPct,
+      netYieldUSD:           yld.netYieldUSD,
+      projectedReturnMinUSD: yld.projectedReturnMinUSD,
+      projectedReturnMaxUSD: yld.projectedReturnMaxUSD,
 
       // Metadata
       computedAt:      new Date().toISOString(),

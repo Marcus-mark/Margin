@@ -92,35 +92,42 @@ export interface YieldResult {
 // ─── Combined output ──────────────────────────────────────────────────────────
 
 export interface SimulationResult {
-  // Scenario
-  priceReturnMin:    number
-  priceReturnMax:    number
-  volatilityScore:   number
-  correlationFactor: number
-  stressMultiplier:  number
+  // Scenario (from buildScenario)
+  worstCasePriceChangePct:  number
+  expectedPriceChangePct:   number
+  bestCasePriceChangePct:   number
+  rebalanceImpactPct:       number
+  volatilityScalar:         number
 
-  // Impermanent loss (provide_liquidity only, null otherwise)
-  impermanentLoss: number | null
-  ilSeverity:      ILSeverity | null
-  breakEvenDays:   number | null
+  // Impermanent loss (from calculateIL — null for non-LP strategies)
+  ilPercent:      number | null   // percentage, e.g. -5.72
+  ilUSD:          number | null
+  holdValueUSD:   number | null
+  lpValueUSD:     number | null
+  feeIncomeUSD:   number | null
+  netPositionUSD: number | null
 
-  // Drawdown
-  maxDrawdown:      number
-  expectedDrawdown: number
-  drawdownDuration: number
-  recoveryDays:     number | null
+  // Drawdown (from calculateDrawdown)
+  maxDrawdownPct:       number
+  maxDrawdownUSD:       number
+  drawdownDurationDays: number
+  timeToRecoveryDays:   number
 
-  // Risk
-  riskLevel:               RiskLevel
-  sharpeRatio:             number
-  volatilityAdjustedReturn: number
-  tailRiskScore:           number
+  // Risk (from calculateRisk)
+  capitalAtRiskUSD:   number
+  capitalAtRiskPct:   number
+  volatilityExposure: number
+  compositeScore:     number
+  riskLevel:          RiskLevel
+  yieldRiskOffset:    number | null
 
-  // Yield
-  expectedYieldMin: number
-  expectedYieldMax: number
-  annualizedYield:  number
-  yieldSource:      string
+  // Yield (from calculateYield)
+  grossYieldPct:         number
+  grossYieldUSD:         number
+  netYieldPct:           number
+  netYieldUSD:           number
+  projectedReturnMinUSD: number
+  projectedReturnMaxUSD: number
 
   // Metadata
   computedAt:      string   // ISO timestamp

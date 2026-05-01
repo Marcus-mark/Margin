@@ -3,6 +3,7 @@ import { useSimulationStore, type SimulationPhase } from '../store/simulationSto
 import { runSimulation } from '../engine'
 import type { SimulationConfig as EngineConfig } from '../types'
 import InputPanel from './InputPanel'
+import ModelSnapshot from './ModelSnapshot'
 
 const STATE_MESSAGES: Record<SimulationPhase, string> = {
   INIT:     'Start by filling in your simulation inputs on the left.',
@@ -24,6 +25,7 @@ export default function SimulationWorkspace() {
         <div className="flex-1 overflow-y-auto">
           <InputPanel />
         </div>
+        <ModelSnapshot />
         <div className="px-4 py-3 border-t border-border-default shrink-0 flex justify-end">
           <RunButton />
         </div>
