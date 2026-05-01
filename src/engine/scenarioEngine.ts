@@ -35,7 +35,7 @@ export function buildScenario(
   stressAmplifier:      number,                               // 1.0 – 3.0
   tailRiskMultiplier:   number,                               // 0.0 – 1.0 (normalised)
   rebalanceSensitivity: number,                               // 0.0 – 1.0 (normalised)
-  timePeriodDays:       number,
+  _timePeriodDays:      number,
 ): ScenarioCalculation {
 
   const volatilityScalar   = VOLATILITY_SCALAR[volatilityLevel]

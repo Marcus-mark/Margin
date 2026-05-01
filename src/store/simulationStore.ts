@@ -101,6 +101,7 @@ interface SimulationState {
   setResults:          (results: SimulationResults) => void
   setError:            (error: SimulationError) => void
   editInputs:          () => void
+  retryFromError:      () => void
   saveSimulation:      (saveId: string) => void
   reset:               () => void
 }
@@ -146,6 +147,11 @@ export const useSimulationStore = create<SimulationState>()((set, get) => ({
     const { state } = get()
     if (state !== 'COMPUTED' && state !== 'SAVED' && state !== 'ERROR') return
     set({ state: 'CONFIG', isStale: true })
+  },
+
+  retryFromError: () => {
+    if (get().state !== 'ERROR') return
+    set({ state: 'CONFIG', error: null })
   },
 
   saveSimulation: (saveId) =>

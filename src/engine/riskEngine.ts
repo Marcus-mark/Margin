@@ -23,11 +23,11 @@ export interface RiskCalculation {
 // ── Pure calculation ──────────────────────────────────────────────────────────
 
 export function calculateRisk(
-  portfolioValueUSD:    number,                       // total capital in USD
-  maxDrawdownPct:       number,                       // decimal, e.g. -0.45
-  maxDrawdownUSD:       number,                       // dollar value of drawdown (negative)
-  drawdownDurationDays: number,                       // days in drawdown phase
-  timeToRecoveryDays:   number,                       // estimated recovery days
+  _portfolioValueUSD:    number,                      // total capital in USD
+  maxDrawdownPct:        number,                      // decimal, e.g. -0.45
+  maxDrawdownUSD:        number,                      // dollar value of drawdown (negative)
+  _drawdownDurationDays: number,                      // days in drawdown phase
+  _timeToRecoveryDays:   number,                      // estimated recovery days
   volatilityLevel:      'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME',
   stressAmplifier:      number,                       // 1.0 – 3.0
   tailRiskMultiplier:   number,                       // 0.0 – 1.0 (normalised)
