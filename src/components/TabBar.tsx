@@ -1,19 +1,21 @@
 import { Home, Plus, X } from 'lucide-react'
 
-type Simulation = { id: string; name: string }
+export type Tab =
+  | { type: 'simulation'; id: string; name: string }
+  | { type: 'comparison'; id: string; name: string; parentSimId: string }
 
 type SubHeaderProps = {
-  simulations: Simulation[]
-  activeId: string | null
-  showNav: boolean
+  tabs:       Tab[]
+  activeId:   string | null
+  showNav:    boolean
   onTabClick: (id: string) => void
   onTabClose: (id: string) => void
-  onHome: () => void
-  onNew: () => void
+  onHome:     () => void
+  onNew:      () => void
 }
 
 export default function SubHeader({
-  simulations,
+  tabs,
   activeId,
   showNav,
   onTabClick,
@@ -24,7 +26,7 @@ export default function SubHeader({
   return (
     <div className="w-full bg-carbon border-b border-border-default flex items-stretch h-10 shrink-0">
 
-      {/* Home — only in simulation view */}
+      {/* Home */}
       {showNav && (
         <button
           onClick={onHome}
@@ -34,14 +36,14 @@ export default function SubHeader({
         </button>
       )}
 
-      {/* Simulation tabs */}
+      {/* Tabs */}
       <div className="flex items-stretch">
-        {simulations.map(sim => {
-          const active = sim.id === activeId
+        {tabs.map(tab => {
+          const active = tab.id === activeId
           return (
             <div
-              key={sim.id}
-              onClick={() => onTabClick(sim.id)}
+              key={tab.id}
+              onClick={() => onTabClick(tab.id)}
               className={[
                 'flex items-center gap-2 px-4 cursor-pointer select-none border-r border-border-default text-xs transition-colors',
                 active
@@ -49,9 +51,9 @@ export default function SubHeader({
                   : 'border-t-2 border-t-transparent text-dust hover:text-bone hover:bg-graphite/50',
               ].join(' ')}
             >
-              <span>{sim.name}</span>
+              <span>{tab.name}</span>
               <button
-                onClick={e => { e.stopPropagation(); onTabClose(sim.id) }}
+                onClick={e => { e.stopPropagation(); onTabClose(tab.id) }}
                 className="flex items-center text-dust hover:text-bone transition-colors"
               >
                 <X size={11} />
@@ -61,7 +63,7 @@ export default function SubHeader({
         })}
       </div>
 
-      {/* New simulation — only in simulation view, sits right after tabs */}
+      {/* New simulation */}
       {showNav && (
         <button
           onClick={onNew}

@@ -15,8 +15,8 @@ function toVolatilityLevel(v: string): 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME' {
 }
 
 function toCorrelationBehavior(c: string): 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' {
-  if (c === 'High Correlation')                              return 'POSITIVE'
-  if (c === 'Low Correlation' || c === 'Negative Correlation') return 'NEGATIVE'
+  if (c === 'High Correlation') return 'POSITIVE'
+  if (c === 'Low Correlation' || c === 'Negative Correlation' || c === 'Breaking (Decoupling)') return 'NEGATIVE'
   return 'NEUTRAL'  // 'Moderate Correlation'
 }
 

@@ -91,7 +91,7 @@ function ErrorPanel() {
   )
 }
 
-export default function SimulationWorkspace() {
+export default function SimulationWorkspace({ onCompare }: { onCompare?: () => void }) {
   const { state, results, isStale } = useSimulationStore()
 
   const showStaleBanner = state === 'CONFIG' && isStale && !!results
@@ -112,7 +112,7 @@ export default function SimulationWorkspace() {
           <InputPanel />
         </div>
         <div className="px-4 py-3 border-t border-border-default shrink-0 flex justify-end">
-          <RunButton />
+          <RunButton onCompare={onCompare} />
         </div>
       </div>
 
@@ -128,7 +128,7 @@ export default function SimulationWorkspace() {
 
 // ── Run / Edit button ─────────────────────────────────────────────────────────
 
-function RunButton() {
+function RunButton({ onCompare }: { onCompare?: () => void }) {
   const {
     state, config, scenarioModifiers, results,
     startRun, setResults, setError, editInputs,
@@ -203,7 +203,7 @@ function RunButton() {
   if (state === 'COMPUTED' || state === 'SAVED') {
     return (
       <div className="flex items-center gap-2">
-        <button className={secBtn}>Compare Strategy</button>
+        <button className={secBtn} onClick={onCompare}>Compare Strategy</button>
         <button onClick={editInputs} className={secBtn}>Edit Inputs</button>
       </div>
     )
@@ -213,7 +213,7 @@ function RunButton() {
   if (editable && results) {
     return (
       <div className="flex items-center gap-2">
-        <button className={secBtn}>Compare Strategy</button>
+        <button className={secBtn} onClick={onCompare}>Compare Strategy</button>
         <button
           onClick={handleRun}
           disabled={!canRun}
