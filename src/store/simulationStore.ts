@@ -88,9 +88,10 @@ interface SimulationState {
   config:  SimulationConfig | null
   results: SimulationResults | null
   error:   SimulationError | null
-  saveId:  string | null
-  version: number
-  isStale: boolean
+  saveId:            string | null
+  simulationGroupId: string | null
+  version:           number
+  isStale:           boolean
 
   scenarioModifiers: ScenarioModifiers | null
 
@@ -102,7 +103,8 @@ interface SimulationState {
   setError:            (error: SimulationError) => void
   editInputs:          () => void
   retryFromError:      () => void
-  saveSimulation:      (saveId: string) => void
+  saveSimulation:      (saveId: string) => string  // returns simulationGroupId
+  updateSavedName:     (name: string) => void
   reset:               () => void
 }
 
@@ -114,6 +116,7 @@ const INITIAL_STATE = {
   results:           null,
   error:             null,
   saveId:            null,
+  simulationGroupId: null,
   version:           1,
   isStale:           false,
   scenarioModifiers: null,
@@ -154,9 +157,18 @@ export const useSimulationStore = create<SimulationState>()((set, get) => ({
     set({ state: 'CONFIG', error: null })
   },
 
-  saveSimulation: (saveId) =>
-    set({ saveId, state: 'SAVED', version: get().version + 1 }),
+  saveSimulation: (saveId) => {
+    const { simulationGroupId, version } = get()
+    const groupId = simulationGroupId ?? crypto.randomUUID()
+    set({ saveId, simulationGroupId: groupId, state: 'SAVED', version: version + 1 })
+    return groupId
+  },
+
+  updateSavedName: (name) =>
+    set(s => ({
+      config: s.config ? { ...s.config, name } : s.config,
+    })),
 
   reset: () =>
-    set({ ...INITIAL_STATE, version: 1 }),
+    set({ ...INITIAL_STATE }),
 }))

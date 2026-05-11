@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { useSimulationStore } from '../store/simulationStore'
 import { runSimulation } from '../engine'
 import type { SimulationConfig as EngineConfig } from '../types'
 import InputPanel from './InputPanel'
 import ResultsPanel from './ResultsPanel'
+import SaveModal from './SaveModal'
 
 // ── Stale results banner ──────────────────────────────────────────────────────
 
@@ -92,7 +94,8 @@ function ErrorPanel() {
 }
 
 export default function SimulationWorkspace({ onCompare }: { onCompare?: () => void }) {
-  const { state, results, isStale } = useSimulationStore()
+  const { state, results, isStale, editInputs } = useSimulationStore()
+  const [showSaveModal, setShowSaveModal] = useState(false)
 
   const showStaleBanner = state === 'CONFIG' && isStale && !!results
 
@@ -112,7 +115,7 @@ export default function SimulationWorkspace({ onCompare }: { onCompare?: () => v
           <InputPanel />
         </div>
         <div className="px-4 py-3 border-t border-border-default shrink-0 flex justify-end">
-          <RunButton onCompare={onCompare} />
+          <RunButton onCompare={onCompare} onSave={() => setShowSaveModal(true)} />
         </div>
       </div>
 
@@ -122,13 +125,20 @@ export default function SimulationWorkspace({ onCompare }: { onCompare?: () => v
         {rightContent()}
       </div>
 
+      {showSaveModal && (
+        <SaveModal
+          onClose={() => setShowSaveModal(false)}
+          onEditInput={() => { editInputs(); setShowSaveModal(false) }}
+        />
+      )}
+
     </div>
   )
 }
 
 // ── Run / Edit button ─────────────────────────────────────────────────────────
 
-function RunButton({ onCompare }: { onCompare?: () => void }) {
+function RunButton({ onCompare, onSave }: { onCompare?: () => void; onSave?: () => void }) {
   const {
     state, config, scenarioModifiers, results,
     startRun, setResults, setError, editInputs,
@@ -205,6 +215,17 @@ function RunButton({ onCompare }: { onCompare?: () => void }) {
       <div className="flex items-center gap-2">
         <button className={secBtn} onClick={onCompare}>Compare Strategy</button>
         <button onClick={editInputs} className={secBtn}>Edit Inputs</button>
+        {state === 'COMPUTED'
+          ? (
+            <button onClick={onSave} className={priBtn(false)}>
+              Save
+            </button>
+          ) : (
+            <button onClick={onSave} className={secBtn}>
+              Saved ✓
+            </button>
+          )
+        }
       </div>
     )
   }
