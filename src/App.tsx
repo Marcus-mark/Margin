@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Header from './components/Header'
 import SubHeader, { type Tab } from './components/TabBar'
 import LeftMenu from './components/LeftMenu'
@@ -18,6 +18,7 @@ function App() {
   const [view, setView]         = useState<View>('home')
 
   const newSimulation = () => {
+    useSimulationStore.getState().reset()
     const id = crypto.randomUUID()
     setTabs(prev => [...prev, { type: 'simulation', id, name: 'Untitled Simulation' }])
     setActiveId(id)
@@ -110,6 +111,20 @@ function App() {
     setActiveId(id)
     setView('workspace')
   }
+
+  // Sync active simulation tab name with what the user typed in the input panel
+  const activeIdRef = useRef(activeId)
+  activeIdRef.current = activeId
+
+  const simName = useSimulationStore(s => s.config?.name ?? '')
+  useEffect(() => {
+    const id = activeIdRef.current
+    if (!id) return
+    const display = simName.trim() || 'Untitled Simulation'
+    setTabs(prev => prev.map(t =>
+      t.id === id && t.type === 'simulation' ? { ...t, name: display } : t
+    ))
+  }, [simName])
 
   const inWorkspace  = view === 'workspace'
   const activeTab    = tabs.find(t => t.id === activeId)
