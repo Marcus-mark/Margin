@@ -212,6 +212,7 @@ export default function SimulationWorkspace({ onCompare }: { onCompare?: () => v
         capitalAllocation: s.config.capitalAllocation,
         grossYieldPct:     s.results.grossYieldPct,
         netYieldPct:       s.results.netYieldPct,
+        marketScenario:    s.config.marketScenario ?? undefined,
       },
       { saveId, version: saveVersion, savedAt, name: s.config.name },
     )

@@ -8,6 +8,7 @@ import CompareWorkspace from './components/CompareWorkspace'
 import { useSimulationStore } from './store/simulationStore'
 import { useCompareStore } from './store/compareStore'
 import { useScenarioCompareStore } from './store/scenarioCompareStore'
+import { useSavesStore, readSave } from './store/savesStore'
 
 type View = 'home' | 'workspace'
 
@@ -82,6 +83,34 @@ function App() {
 
   const goHome = () => setView('home')
 
+  const openSavedSimulation = (simulationGroupId: string) => {
+    const entry = useSavesStore.getState().entries.find(
+      e => e.simulationGroupId === simulationGroupId
+    )
+    if (!entry || entry.versions.length === 0) return
+
+    const latest = entry.versions[0]  // newest first
+    const save   = readSave(latest.saveId)
+    if (!save) return
+
+    useSimulationStore.setState({
+      config:            save.config,
+      results:           save.results,
+      scenarioModifiers: save.scenarioModifiers,
+      saveId:            save.id,
+      simulationGroupId: save.simulationGroupId,
+      state:             'SAVED',
+      isStale:           false,
+      error:             null,
+      version:           latest.version + 1,
+    })
+
+    const id = crypto.randomUUID()
+    setTabs(prev => [...prev, { type: 'simulation', id, name: entry.name }])
+    setActiveId(id)
+    setView('workspace')
+  }
+
   const inWorkspace  = view === 'workspace'
   const activeTab    = tabs.find(t => t.id === activeId)
   const isComparison = activeTab?.type === 'comparison'
@@ -108,7 +137,7 @@ function App() {
           ? isComparison
             ? <CompareWorkspace />
             : <SimulationWorkspace onCompare={openComparison} />
-          : <HomeScreen />
+          : <HomeScreen onOpenSimulation={openSavedSimulation} onNew={newSimulation} />
         }
       </div>
     </>

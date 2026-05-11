@@ -22,6 +22,7 @@ export interface SaveEntry {
   capitalAllocation: number
   grossYieldPct:     number
   netYieldPct:       number
+  marketScenario?:   string   // raw MarketScenario enum value
   versions:          VersionRecord[]  // newest first
 }
 
@@ -60,7 +61,8 @@ interface SavesState {
     meta:    Omit<SaveEntry, 'versions'>,
     version: VersionRecord,
   ) => void
-  updateName: (simulationGroupId: string, name: string) => void
+  updateName:    (simulationGroupId: string, name: string) => void
+  removeEntry:   (simulationGroupId: string) => void
   clear: () => void
 }
 
@@ -88,6 +90,11 @@ export const useSavesStore = create<SavesState>()(
           entries: s.entries.map(e =>
             e.simulationGroupId === simulationGroupId ? { ...e, name } : e
           ),
+        })),
+
+      removeEntry: (simulationGroupId) =>
+        set(s => ({
+          entries: s.entries.filter(e => e.simulationGroupId !== simulationGroupId),
         })),
 
       clear: () => set({ entries: [] }),
