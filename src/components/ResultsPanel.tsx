@@ -1,4 +1,5 @@
 import { useSimulationStore } from '../store/simulationStore'
+import ExplainPanel from './ExplainPanel'
 
 // ── Badge config ──────────────────────────────────────────────────────────────
 
@@ -157,6 +158,9 @@ export default function ResultsPanel({ onSave }: { onSave?: () => void }) {
 
       {/* ── Bottom full-width separator ─────────────────────────────────────── */}
       <div className="border-t border-border-default" />
+
+      {/* ── AI explanation ──────────────────────────────────────────────────── */}
+      <ExplainPanel />
 
       {/* ── Save CTA ────────────────────────────────────────────────────────── */}
       <div className="flex justify-center py-6 pb-8">
