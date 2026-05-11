@@ -1,7 +1,13 @@
 import { useState } from 'react'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, ChevronDown } from 'lucide-react'
 import { useCompareStore } from '../store/compareStore'
 import { useScenarioCompareStore } from '../store/scenarioCompareStore'
+import {
+  useComparisonSavesStore,
+  writeComparisonSave,
+  readComparisonSave,
+} from '../store/compareSavesStore'
+import type { SavedComparison } from '../store/compareSavesStore'
 import { runComparison } from '../engine/compareEngine'
 import { runScenarioComparison } from '../engine/scenarioCompareEngine'
 import CompareInputPanel from './CompareInputPanel'
@@ -10,6 +16,30 @@ import ScenarioCompareInputPanel from './ScenarioCompareInputPanel'
 import ScenarioCompareResultsPanel from './ScenarioCompareResultsPanel'
 
 type CompareMode = 'strategy' | 'scenario'
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function deriveRiskLevel(maxDrawdownPct: number): string {
+  const abs = Math.abs(maxDrawdownPct)
+  if (abs < 0.10) return 'low'
+  if (abs < 0.25) return 'moderate'
+  if (abs < 0.45) return 'high'
+  if (abs < 0.65) return 'critical'
+  return 'extreme'
+}
+
+function versionLabel(version: number, maxVersion: number): string {
+  if (version === maxVersion) return 'Current (Auto-saved)'
+  if (version === 1)          return 'Initial version'
+  return 'Previous version'
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
 
 // ── Shared state panels ───────────────────────────────────────────────────────
 
@@ -105,10 +135,70 @@ function ErrorPanel({ mode }: { mode: CompareMode }) {
   )
 }
 
+// ── Version history bar ───────────────────────────────────────────────────────
+
+function VersionHistoryBar({
+  comparisonGroupId,
+  currentSaveId,
+  onLoadVersion,
+}: {
+  comparisonGroupId: string | null
+  currentSaveId:     string | null
+  onLoadVersion:     (saveId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  const entry    = useComparisonSavesStore(s => s.entries.find(e => e.comparisonGroupId === comparisonGroupId))
+  const versions = entry?.versions ?? []
+  const maxVer   = versions.reduce((m, v) => Math.max(m, v.version), 0)
+
+  if (versions.length === 0) return null
+
+  return (
+    <div className="relative flex items-center justify-end px-4 py-2.5 border-b border-border-default shrink-0 bg-carbon">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-[13px] text-bone hover:text-dust transition-colors"
+      >
+        Version History
+        <ChevronDown
+          size={13}
+          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute top-full right-4 mt-1 w-[300px] bg-graphite border border-border-default rounded-xl shadow-xl z-20 overflow-hidden">
+            {versions.map((v, i) => (
+              <button
+                key={v.saveId}
+                onClick={() => { onLoadVersion(v.saveId); setOpen(false) }}
+                className={[
+                  'w-full flex items-center justify-between px-4 py-3 text-left hover:bg-ash/60 transition-colors',
+                  v.saveId === currentSaveId ? 'bg-ash/40' : '',
+                  i < versions.length - 1 ? 'border-b border-border-default' : '',
+                ].join(' ')}
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-bone">{versionLabel(v.version, maxVer)}</span>
+                  <span className="text-[11px] text-dust/50">{fmtDate(v.savedAt)}</span>
+                </div>
+                <span className="text-[12px] text-dust ml-3 shrink-0">v{v.version}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Footer CTA buttons ────────────────────────────────────────────────────────
 
-function StrategyFooter() {
-  const { phase, config, startRun, setResults, setError } = useCompareStore()
+function StrategyFooter({ onSave }: { onSave: () => void }) {
+  const { phase, config, startRun, setResults, setError, editInputs } = useCompareStore()
 
   const running = phase === 'RUNNING'
   const canRun  = !running
@@ -139,11 +229,21 @@ function StrategyFooter() {
     }
   }
 
+  if (phase === 'SAVED') {
+    return (
+      <button onClick={editInputs} className={secBtn}>Edit Inputs</button>
+    )
+  }
+
   if (phase === 'COMPUTED') {
     return (
-      <button onClick={() => useCompareStore.getState().reset()} className={secBtn}>
-        Edit Inputs
-      </button>
+      <div className="flex items-center gap-2">
+        <button onClick={editInputs} className={secBtn}>Edit Inputs</button>
+        <button onClick={handleRun} disabled={!canRun} className={priCls(!canRun)}>
+          <ArrowUpRight size={14} />
+          Run Again
+        </button>
+      </div>
     )
   }
 
@@ -155,7 +255,7 @@ function StrategyFooter() {
   )
 }
 
-function ScenarioFooter() {
+function ScenarioFooter({ onSave }: { onSave: () => void }) {
   const { phase, config, startRun, setResults, setError, editInputs } =
     useScenarioCompareStore()
 
@@ -187,11 +287,21 @@ function ScenarioFooter() {
     }
   }
 
+  if (phase === 'SAVED') {
+    return (
+      <button onClick={editInputs} className={secBtn}>Edit Inputs</button>
+    )
+  }
+
   if (phase === 'COMPUTED') {
     return (
-      <button onClick={editInputs} className={secBtn}>
-        Edit Inputs
-      </button>
+      <div className="flex items-center gap-2">
+        <button onClick={editInputs} className={secBtn}>Edit Inputs</button>
+        <button onClick={handleRun} disabled={!canRun} className={priCls(!canRun)}>
+          <ArrowUpRight size={14} />
+          Run Again
+        </button>
+      </div>
     )
   }
 
@@ -205,27 +315,107 @@ function ScenarioFooter() {
 
 // ── Workspace ─────────────────────────────────────────────────────────────────
 
-export default function CompareWorkspace() {
-  const [mode, setMode] = useState<CompareMode>('strategy')
+export default function CompareWorkspace({ initialMode }: { initialMode?: 'strategy' | 'scenario' }) {
+  const [mode, setMode] = useState<CompareMode>(initialMode ?? 'strategy')
 
   const stratStore    = useCompareStore()
   const scenarioStore = useScenarioCompareStore()
 
-  // Derive per-mode state
   const phase   = mode === 'strategy' ? stratStore.phase   : scenarioStore.phase
   const results = mode === 'strategy' ? stratStore.results : scenarioStore.results
   const isStale = mode === 'scenario' ? scenarioStore.isStale : false
+
+  const groupId     = mode === 'strategy' ? stratStore.comparisonGroupId : scenarioStore.comparisonGroupId
+  const currentSave = mode === 'strategy' ? stratStore.saveId            : scenarioStore.saveId
+
+  // ── Save ────────────────────────────────────────────────────────────────────
+
+  const handleStrategySave = () => {
+    const s = useCompareStore.getState()
+    if ((s.phase !== 'COMPUTED' && s.phase !== 'INIT') || !s.config || !s.results) return
+
+    const saveId   = crypto.randomUUID()
+    const version  = s.version
+    const groupId  = s.saveComparison(saveId)
+    const savedAt  = new Date().toISOString()
+
+    const fullSave: SavedComparison = {
+      id: saveId, comparisonGroupId: groupId, version,
+      name: s.config.name, savedAt, comparisonType: 'strategy',
+      strategyConfig: s.config, strategyResults: s.results,
+    }
+    writeComparisonSave(fullSave)
+    useComparisonSavesStore.getState().upsert(
+      groupId,
+      {
+        comparisonGroupId: groupId,
+        name:              s.config.name,
+        savedAt,
+        comparisonType:    'strategy',
+        riskLevels:        s.results.strategies.map(r => r.riskLevel),
+      },
+      { saveId, version, savedAt, name: s.config.name },
+    )
+  }
+
+  const handleScenarioSave = () => {
+    const s = useScenarioCompareStore.getState()
+    if ((s.phase !== 'COMPUTED' && s.phase !== 'INIT') || !s.config || !s.results) return
+
+    const saveId   = crypto.randomUUID()
+    const version  = s.version
+    const groupId  = s.saveComparison(saveId)
+    const savedAt  = new Date().toISOString()
+
+    const fullSave: SavedComparison = {
+      id: saveId, comparisonGroupId: groupId, version,
+      name: s.config.name, savedAt, comparisonType: 'scenario',
+      scenarioConfig: s.config, scenarioResults: s.results,
+    }
+    writeComparisonSave(fullSave)
+    useComparisonSavesStore.getState().upsert(
+      groupId,
+      {
+        comparisonGroupId: groupId,
+        name:              s.config.name,
+        savedAt,
+        comparisonType:    'scenario',
+        riskLevels:        s.results.columns.map(c => deriveRiskLevel(c.maxDrawdownPct)),
+      },
+      { saveId, version, savedAt, name: s.config.name },
+    )
+  }
+
+  const handleSave = mode === 'strategy' ? handleStrategySave : handleScenarioSave
+
+  // ── Load version ────────────────────────────────────────────────────────────
+
+  const handleLoadVersion = (saveId: string) => {
+    const save = readComparisonSave(saveId)
+    if (!save) return
+    if (save.comparisonType === 'strategy' && save.strategyConfig && save.strategyResults) {
+      useCompareStore.getState().loadVersion(save.strategyConfig, save.strategyResults, save.id)
+      setMode('strategy')
+    } else if (save.comparisonType === 'scenario' && save.scenarioConfig && save.scenarioResults) {
+      useScenarioCompareStore.getState().loadVersion(save.scenarioConfig, save.scenarioResults, save.id)
+      setMode('scenario')
+    }
+  }
+
+  // ── Right panel content ─────────────────────────────────────────────────────
 
   function rightContent() {
     if (phase === 'RUNNING') return <RunningPanel mode={mode} />
     if (phase === 'ERROR')   return <ErrorPanel   mode={mode} />
     if (results) {
       return mode === 'strategy'
-        ? <CompareResultsPanel />
-        : <ScenarioCompareResultsPanel />
+        ? <CompareResultsPanel    onSave={handleSave} />
+        : <ScenarioCompareResultsPanel onSave={handleSave} />
     }
     return <EmptyPanel mode={mode} />
   }
+
+  const isSaved = phase === 'SAVED'
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -258,15 +448,27 @@ export default function CompareWorkspace() {
 
         {/* Footer CTA */}
         <div className="px-4 py-3 border-t border-border-default shrink-0 flex justify-center">
-          {mode === 'strategy' ? <StrategyFooter /> : <ScenarioFooter />}
+          {mode === 'strategy'
+            ? <StrategyFooter onSave={handleSave} />
+            : <ScenarioFooter onSave={handleSave} />
+          }
         </div>
 
       </div>
 
       {/* Right panel */}
-      <div className="flex flex-1 flex-col bg-carbon overflow-y-auto">
-        {isStale && results && <StaleBanner />}
-        {rightContent()}
+      <div className="flex flex-1 flex-col bg-carbon overflow-hidden">
+        {isSaved && (
+          <VersionHistoryBar
+            comparisonGroupId={groupId}
+            currentSaveId={currentSave}
+            onLoadVersion={handleLoadVersion}
+          />
+        )}
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          {isStale && results && <StaleBanner />}
+          {rightContent()}
+        </div>
       </div>
 
     </div>

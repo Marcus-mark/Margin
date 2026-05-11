@@ -1,4 +1,4 @@
-import { useSimulationStore } from '../store/simulationStore'
+import { useSimulationStore } from '../store/useSimulationStore'
 
 const STRATEGY_LABELS: Record<string, string> = {
   hold_asset:        'Hold Asset',

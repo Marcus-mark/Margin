@@ -3,7 +3,7 @@ import type { Strategy, MarketScenario } from '../types'
 import type { ScenarioModifiers } from '../data/scenarioPresets'
 import { SCENARIO_PRESETS } from '../data/scenarioPresets'
 
-export type ScenarioComparePhase = 'INIT' | 'RUNNING' | 'COMPUTED' | 'ERROR'
+export type ScenarioComparePhase = 'INIT' | 'RUNNING' | 'COMPUTED' | 'SAVED' | 'ERROR'
 
 export interface ScenarioBlock {
   id:                string
@@ -94,11 +94,14 @@ function defaultScenarios(timePeriodDays: number): ScenarioBlock[] {
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 interface ScenarioCompareState {
-  phase:   ScenarioComparePhase
-  isStale: boolean
-  config:  ScenarioCompareConfig | null
-  results: ScenarioCompareResult | null
-  error:   string | null
+  phase:             ScenarioComparePhase
+  isStale:           boolean
+  config:            ScenarioCompareConfig | null
+  results:           ScenarioCompareResult | null
+  error:             string | null
+  comparisonGroupId: string | null
+  saveId:            string | null
+  version:           number
 
   initFromSimulation: (sim: {
     name:              string
@@ -106,21 +109,26 @@ interface ScenarioCompareState {
     strategy:          Strategy
     timePeriodDays:    number
   }) => void
-  updateScenario: (blockId: string, partial: Partial<Omit<ScenarioBlock, 'id' | 'isBaseline'>>) => void
-  setConfig:      (partial: Partial<Pick<ScenarioCompareConfig, 'name' | 'capitalAllocation'>>) => void
-  startRun:       () => void
-  setResults:     (results: ScenarioCompareResult) => void
-  setError:       (msg: string) => void
-  editInputs:     () => void
-  reset:          () => void
+  updateScenario:  (blockId: string, partial: Partial<Omit<ScenarioBlock, 'id' | 'isBaseline'>>) => void
+  setConfig:       (partial: Partial<Pick<ScenarioCompareConfig, 'name' | 'capitalAllocation'>>) => void
+  startRun:        () => void
+  setResults:      (results: ScenarioCompareResult) => void
+  setError:        (msg: string) => void
+  editInputs:      () => void
+  saveComparison:  (saveId: string) => string  // returns comparisonGroupId
+  loadVersion:     (config: ScenarioCompareConfig, results: ScenarioCompareResult, saveId: string) => void
+  reset:           () => void
 }
 
-export const useScenarioCompareStore = create<ScenarioCompareState>()((set) => ({
-  phase:   'INIT',
-  isStale: false,
-  config:  null,
-  results: null,
-  error:   null,
+export const useScenarioCompareStore = create<ScenarioCompareState>()((set, get) => ({
+  phase:             'INIT',
+  isStale:           false,
+  config:            null,
+  results:           null,
+  error:             null,
+  comparisonGroupId: null,
+  saveId:            null,
+  version:           1,
 
   initFromSimulation: (sim) =>
     set({
@@ -159,8 +167,23 @@ export const useScenarioCompareStore = create<ScenarioCompareState>()((set) => (
   setError:   (msg) => set({ phase: 'ERROR', error: msg }),
 
   editInputs: () =>
-    set(s => s.phase === 'COMPUTED' ? { phase: 'INIT', isStale: true } : s),
+    set(s => (s.phase === 'COMPUTED' || s.phase === 'SAVED')
+      ? { phase: 'INIT', isStale: true }
+      : s),
+
+  saveComparison: (saveId) => {
+    const { comparisonGroupId, version } = get()
+    const groupId = comparisonGroupId ?? crypto.randomUUID()
+    set({ saveId, comparisonGroupId: groupId, phase: 'SAVED', version: version + 1 })
+    return groupId
+  },
+
+  loadVersion: (config, results, saveId) =>
+    set({ config, results, saveId, phase: 'SAVED', isStale: false }),
 
   reset: () =>
-    set({ phase: 'INIT', isStale: false, config: null, results: null, error: null }),
+    set({
+      phase: 'INIT', isStale: false, config: null, results: null, error: null,
+      comparisonGroupId: null, saveId: null, version: 1,
+    }),
 }))

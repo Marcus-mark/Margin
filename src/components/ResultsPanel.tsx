@@ -1,4 +1,4 @@
-import { useSimulationStore } from '../store/simulationStore'
+import { useSimulationStore } from '../store/useSimulationStore'
 import ExplainPanel from './ExplainPanel'
 
 // ── Badge config ──────────────────────────────────────────────────────────────
@@ -79,11 +79,8 @@ export default function ResultsPanel({ onSave }: { onSave?: () => void }) {
         </span>
       </div>
 
-      {/* ── Top full-width separator ────────────────────────────────────────── */}
-      <div className="border-t border-border-default" />
-
-      {/* ── Card — left + right borders, graphite bg, 10 % side margins ──────── */}
-      <div className="mx-[10%] border-x border-border-default bg-graphite">
+      {/* ── Card ────────────────────────────────────────────────────────────── */}
+      <div className="mx-[10%] border border-border-default rounded-xl bg-graphite overflow-hidden">
 
         {/* 1 · Max draw-down */}
         <Row label="Max draw-down">
@@ -155,9 +152,6 @@ export default function ResultsPanel({ onSave }: { onSave?: () => void }) {
         </Row>
 
       </div>
-
-      {/* ── Bottom full-width separator ─────────────────────────────────────── */}
-      <div className="border-t border-border-default" />
 
       {/* ── AI explanation ──────────────────────────────────────────────────── */}
       <ExplainPanel />

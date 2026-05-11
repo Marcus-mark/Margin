@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Strategy, MarketScenario } from '../types'
 import type { ScenarioModifiers } from '../data/scenarioPresets'
 
-export type ComparePhase = 'INIT' | 'RUNNING' | 'COMPUTED' | 'ERROR'
+export type ComparePhase = 'INIT' | 'RUNNING' | 'COMPUTED' | 'SAVED' | 'ERROR'
 
 export interface CompareConfig {
   name:               string
@@ -54,10 +54,13 @@ export interface CompareResult {
 }
 
 interface CompareState {
-  phase:   ComparePhase
-  config:  CompareConfig | null
-  results: CompareResult | null
-  error:   string | null
+  phase:              ComparePhase
+  config:             CompareConfig | null
+  results:            CompareResult | null
+  error:              string | null
+  comparisonGroupId:  string | null
+  saveId:             string | null
+  version:            number
 
   initFromSimulation: (sim: {
     name:              string
@@ -71,19 +74,25 @@ interface CompareState {
     timePeriodDays:    number
     scenarioModifiers: ScenarioModifiers
   }) => void
-  setConfig:       (partial: Partial<CompareConfig>) => void
-  toggleStrategy:  (strategy: Strategy) => void
-  startRun:        () => void
-  setResults:      (results: CompareResult) => void
-  setError:        (msg: string) => void
-  reset:           () => void
+  setConfig:        (partial: Partial<CompareConfig>) => void
+  toggleStrategy:   (strategy: Strategy) => void
+  startRun:         () => void
+  setResults:       (results: CompareResult) => void
+  setError:         (msg: string) => void
+  editInputs:       () => void
+  saveComparison:   (saveId: string) => string  // returns comparisonGroupId
+  loadVersion:      (config: CompareConfig, results: CompareResult, saveId: string) => void
+  reset:            () => void
 }
 
-export const useCompareStore = create<CompareState>()((set) => ({
-  phase:   'INIT',
-  config:  null,
-  results: null,
-  error:   null,
+export const useCompareStore = create<CompareState>()((set, get) => ({
+  phase:             'INIT',
+  config:            null,
+  results:           null,
+  error:             null,
+  comparisonGroupId: null,
+  saveId:            null,
+  version:           1,
 
   initFromSimulation: (sim) =>
     set({
@@ -133,5 +142,23 @@ export const useCompareStore = create<CompareState>()((set) => ({
 
   setError: (msg) => set({ phase: 'ERROR', error: msg }),
 
-  reset: () => set({ phase: 'INIT', config: null, results: null, error: null }),
+  editInputs: () => {
+    const { phase } = get()
+    if (phase === 'COMPUTED' || phase === 'SAVED') set({ phase: 'INIT' })
+  },
+
+  saveComparison: (saveId) => {
+    const { comparisonGroupId, version } = get()
+    const groupId = comparisonGroupId ?? crypto.randomUUID()
+    set({ saveId, comparisonGroupId: groupId, phase: 'SAVED', version: version + 1 })
+    return groupId
+  },
+
+  loadVersion: (config, results, saveId) =>
+    set({ config, results, saveId, phase: 'SAVED' }),
+
+  reset: () => set({
+    phase: 'INIT', config: null, results: null, error: null,
+    comparisonGroupId: null, saveId: null, version: 1,
+  }),
 }))

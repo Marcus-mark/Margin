@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { CheckCircle2, Loader2, ChevronDown } from 'lucide-react'
-import { useSimulationStore } from '../store/simulationStore'
+import { useSimulationStore } from '../store/useSimulationStore'
+import { usePreferencesStore } from '../store/preferencesStore'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -16,12 +17,13 @@ interface ExplainData {
 // ── Dropdown trigger ──────────────────────────────────────────────────────────
 
 interface DropdownProps {
-  loading:   boolean
-  hasData:   boolean
-  onSelect:  (mode: Mode) => void
+  loading:      boolean
+  hasData:      boolean
+  defaultMode:  Mode
+  onSelect:     (mode: Mode) => void
 }
 
-function ExplainDropdown({ loading, hasData, onSelect }: DropdownProps) {
+function ExplainDropdown({ loading, hasData, defaultMode, onSelect }: DropdownProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -69,7 +71,12 @@ function ExplainDropdown({ loading, hasData, onSelect }: DropdownProps) {
                 i === 0 ? 'border-b border-border-default' : '',
               ].join(' ')}
             >
-              <span className="text-[13px] text-bone capitalize">{m}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[13px] text-bone capitalize">{m}</span>
+                {m === defaultMode && (
+                  <span className="text-[10px] text-dust/60">default</span>
+                )}
+              </div>
               <span className="text-[11px] text-dust">
                 {m === 'novice' ? 'Plain English, no jargon' : 'DeFi terminology'}
               </span>
@@ -157,6 +164,7 @@ function DisclaimerCard() {
 
 export default function ExplainPanel() {
   const { config, results } = useSimulationStore()
+  const { expertiseMode, incrementExplainCount } = usePreferencesStore()
 
   const [loading, setLoading] = useState(false)
   const [data,    setData]    = useState<ExplainData | null>(null)
@@ -181,6 +189,7 @@ export default function ExplainPanel() {
 
       const json = await res.json() as ExplainData
       setData(json)
+      incrementExplainCount()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate explanation.')
     } finally {
@@ -202,6 +211,7 @@ export default function ExplainPanel() {
         <ExplainDropdown
           loading={loading}
           hasData={!!data}
+          defaultMode={expertiseMode}
           onSelect={handleSelect}
         />
       </div>

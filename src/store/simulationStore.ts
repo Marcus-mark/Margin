@@ -1,4 +1,5 @@
-import { create } from 'zustand'
+import { createStore } from 'zustand/vanilla'
+import type { StoreApi } from 'zustand'
 import type { SimulationResult } from '../types'
 import type { ScenarioModifiers } from '../data/scenarioPresets'
 
@@ -61,29 +62,9 @@ export interface SimulationError {
   detail?: string
 }
 
-// ─── Defaults ─────────────────────────────────────────────────────────────────
-
-const DEFAULT_CONFIG: SimulationConfig = {
-  name:              '',
-  capitalAllocation: 0,
-  assets:            [],
-  strategy:          null,
-  marketScenario:    null,
-  riskParameters:    { leverageCap: null, exposureCap: null, volatilitySensitivity: null },
-  upperBand:         12,
-  lowerBand:         -10,
-  volatility:        'Medium',
-  correlation:       'Moderate Correlation',
-  timePeriodDays:    30,
-  stakeApy:          null,
-  lpFeeApr:          null,
-  assetA:            '',
-  assetB:            '',
-}
-
 // ─── Store shape ──────────────────────────────────────────────────────────────
 
-interface SimulationState {
+export interface SimulationState {
   state:   SimulationPhase
   config:  SimulationConfig | null
   results: SimulationResults | null
@@ -109,7 +90,27 @@ interface SimulationState {
   reset:               () => void
 }
 
-// ─── Initial state ────────────────────────────────────────────────────────────
+export type SimulationStoreApi = StoreApi<SimulationState>
+
+// ─── Defaults ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_CONFIG: SimulationConfig = {
+  name:              '',
+  capitalAllocation: 0,
+  assets:            [],
+  strategy:          null,
+  marketScenario:    null,
+  riskParameters:    { leverageCap: null, exposureCap: null, volatilitySensitivity: null },
+  upperBand:         12,
+  lowerBand:         -10,
+  volatility:        'Medium',
+  correlation:       'Moderate Correlation',
+  timePeriodDays:    30,
+  stakeApy:          null,
+  lpFeeApr:          null,
+  assetA:            '',
+  assetB:            '',
+}
 
 const INITIAL_STATE = {
   state:             'INIT' as SimulationPhase,
@@ -123,56 +124,58 @@ const INITIAL_STATE = {
   scenarioModifiers: null,
 }
 
-// ─── Store ────────────────────────────────────────────────────────────────────
+// ─── Factory ──────────────────────────────────────────────────────────────────
 
-export const useSimulationStore = create<SimulationState>()((set, get) => ({
-  ...INITIAL_STATE,
+export function createSimulationStore(): SimulationStoreApi {
+  return createStore<SimulationState>()((set, get) => ({
+    ...INITIAL_STATE,
 
-  setConfig: (partial) =>
-    set(s => ({
-      config: { ...DEFAULT_CONFIG, ...(s.config ?? {}), ...partial },
-      state:  'CONFIG' as SimulationPhase,
-      error:  null,
-    })),
+    setConfig: (partial) =>
+      set(s => ({
+        config: { ...DEFAULT_CONFIG, ...(s.config ?? {}), ...partial },
+        state:  'CONFIG' as SimulationPhase,
+        error:  null,
+      })),
 
-  setScenarioModifiers: (m) =>
-    set({ scenarioModifiers: m }),
+    setScenarioModifiers: (m) =>
+      set({ scenarioModifiers: m }),
 
-  startRun: () =>
-    set({ state: 'RUNNING', error: null }),
+    startRun: () =>
+      set({ state: 'RUNNING', error: null }),
 
-  setResults: (results) =>
-    set({ results, state: 'COMPUTED', isStale: false }),
+    setResults: (results) =>
+      set({ results, state: 'COMPUTED', isStale: false }),
 
-  setError: (error) =>
-    set({ error, state: 'ERROR' }),
+    setError: (error) =>
+      set({ error, state: 'ERROR' }),
 
-  editInputs: () => {
-    const { state } = get()
-    if (state !== 'COMPUTED' && state !== 'SAVED' && state !== 'ERROR') return
-    set({ state: 'CONFIG', isStale: true })
-  },
+    editInputs: () => {
+      const { state } = get()
+      if (state !== 'COMPUTED' && state !== 'SAVED' && state !== 'ERROR') return
+      set({ state: 'CONFIG', isStale: true })
+    },
 
-  retryFromError: () => {
-    if (get().state !== 'ERROR') return
-    set({ state: 'CONFIG', error: null })
-  },
+    retryFromError: () => {
+      if (get().state !== 'ERROR') return
+      set({ state: 'CONFIG', error: null })
+    },
 
-  saveSimulation: (saveId) => {
-    const { simulationGroupId, version } = get()
-    const groupId = simulationGroupId ?? crypto.randomUUID()
-    set({ saveId, simulationGroupId: groupId, state: 'SAVED', version: version + 1 })
-    return groupId
-  },
+    saveSimulation: (saveId) => {
+      const { simulationGroupId, version } = get()
+      const groupId = simulationGroupId ?? crypto.randomUUID()
+      set({ saveId, simulationGroupId: groupId, state: 'SAVED', version: version + 1 })
+      return groupId
+    },
 
-  updateSavedName: (name) =>
-    set(s => ({
-      config: s.config ? { ...s.config, name } : s.config,
-    })),
+    updateSavedName: (name) =>
+      set(s => ({
+        config: s.config ? { ...s.config, name } : s.config,
+      })),
 
-  loadVersion: (config, results, scenarioModifiers, saveId) =>
-    set({ config, results, scenarioModifiers, saveId, state: 'SAVED', isStale: false }),
+    loadVersion: (config, results, scenarioModifiers, saveId) =>
+      set({ config, results, scenarioModifiers, saveId, state: 'SAVED', isStale: false }),
 
-  reset: () =>
-    set({ ...INITIAL_STATE }),
-}))
+    reset: () =>
+      set({ ...INITIAL_STATE }),
+  }))
+}

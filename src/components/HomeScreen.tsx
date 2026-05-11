@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { ArrowUpRight, Trash2, Copy } from 'lucide-react'
 import { useSavesStore, readSave, writeSave } from '../store/savesStore'
-import type { SaveEntry, SavedSimulation } from '../store/savesStore'
+import type { SaveEntry, SavedSimulation, RecentRecord } from '../store/savesStore'
+import { useComparisonSavesStore } from '../store/compareSavesStore'
+import type { ComparisonEntry } from '../store/compareSavesStore'
 
 // ── Label maps ────────────────────────────────────────────────────────────────
 
@@ -43,7 +45,7 @@ function relativeTime(iso: string): string {
   })
 }
 
-// ── Simulation card ───────────────────────────────────────────────────────────
+// ── Shared sub-components ─────────────────────────────────────────────────────
 
 function MetaCol({ label, value }: { label: string; value: string }) {
   return (
@@ -54,58 +56,49 @@ function MetaCol({ label, value }: { label: string; value: string }) {
   )
 }
 
-interface CardProps {
+function RiskBadge({ level }: { level: string }) {
+  const badge = RISK_BADGE[level] ?? RISK_BADGE.moderate
+  return (
+    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide shrink-0 ${badge.cls}`}>
+      {badge.label}
+    </span>
+  )
+}
+
+// ── Saved simulation card ─────────────────────────────────────────────────────
+
+interface SavedCardProps {
   entry:       SaveEntry
   onOpen:      () => void
   onDelete:    () => void
   onDuplicate: () => void
 }
 
-function SimCard({ entry, onOpen, onDelete, onDuplicate }: CardProps) {
-  const latest  = entry.versions[0]
-  const badge   = RISK_BADGE[entry.riskLevel] ?? RISK_BADGE.moderate
+function SavedCard({ entry, onOpen, onDelete, onDuplicate }: SavedCardProps) {
+  const latest = entry.versions[0]
 
   return (
     <div className="bg-graphite border border-border-default rounded-xl overflow-hidden">
-
-      {/* Header */}
       <div className="flex items-center justify-between px-5 pt-5 pb-4">
         <div className="flex items-center gap-2.5 min-w-0 mr-4">
           <span className="text-[14px] font-medium text-bone truncate">{entry.name}</span>
-          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide shrink-0 ${badge.cls}`}>
-            {badge.label}
-          </span>
+          <RiskBadge level={entry.riskLevel} />
         </div>
         <span className="text-[12px] text-dust shrink-0">
-          Updated · {relativeTime(entry.savedAt)}
+          Saved · {relativeTime(entry.savedAt)}
         </span>
       </div>
 
-      {/* Metadata */}
       <div className="flex gap-10 px-5 pb-4">
-        <MetaCol
-          label="Capital"
-          value={`$ ${entry.capitalAllocation.toLocaleString('en-US')}`}
-        />
-        <MetaCol
-          label="Strategy"
-          value={STRATEGY_LABELS[entry.strategy] ?? entry.strategy}
-        />
+        <MetaCol label="Capital"  value={`$ ${entry.capitalAllocation.toLocaleString('en-US')}`} />
+        <MetaCol label="Strategy" value={STRATEGY_LABELS[entry.strategy] ?? entry.strategy} />
         <MetaCol
           label="Scenario"
-          value={
-            entry.marketScenario
-              ? (SCENARIO_LABELS[entry.marketScenario] ?? entry.marketScenario)
-              : '—'
-          }
+          value={entry.marketScenario ? (SCENARIO_LABELS[entry.marketScenario] ?? entry.marketScenario) : '—'}
         />
-        <MetaCol
-          label="Version"
-          value={`v${latest?.version ?? 1}`}
-        />
+        <MetaCol label="Version" value={`v${latest?.version ?? 1}`} />
       </div>
 
-      {/* Footer */}
       <div className="flex items-center justify-between px-5 py-3.5 border-t border-border-default">
         <div className="flex items-center gap-5">
           <button
@@ -131,20 +124,85 @@ function SimCard({ entry, onOpen, onDelete, onDuplicate }: CardProps) {
           Open Simulation
         </button>
       </div>
+    </div>
+  )
+}
 
+// ── Recent run card ───────────────────────────────────────────────────────────
+
+interface RecentCardProps {
+  record:   RecentRecord
+  onOpen:   () => void
+  onDelete: () => void
+}
+
+function RecentCard({ record, onOpen, onDelete }: RecentCardProps) {
+  return (
+    <div className="bg-graphite border border-border-default rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-5 pt-5 pb-4">
+        <div className="flex items-center gap-2.5 min-w-0 mr-4">
+          <span className="text-[14px] font-medium text-bone truncate">{record.name}</span>
+          <RiskBadge level={record.riskLevel} />
+        </div>
+        <span className="text-[12px] text-dust shrink-0">
+          Ran · {relativeTime(record.runnedAt)}
+        </span>
+      </div>
+
+      <div className="flex gap-10 px-5 pb-4">
+        <MetaCol label="Capital"  value={`$ ${record.capitalAllocation.toLocaleString('en-US')}`} />
+        <MetaCol label="Strategy" value={STRATEGY_LABELS[record.strategy] ?? record.strategy} />
+        <MetaCol
+          label="Scenario"
+          value={record.marketScenario ? (SCENARIO_LABELS[record.marketScenario] ?? record.marketScenario) : '—'}
+        />
+      </div>
+
+      <div className="flex items-center justify-between px-5 py-3.5 border-t border-border-default">
+        <button
+          onClick={onDelete}
+          className="flex items-center gap-1.5 text-[13px] text-dust hover:text-bone transition-colors"
+        >
+          <Trash2 size={13} />
+          Remove
+        </button>
+        <button
+          onClick={onOpen}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-oxide text-carbon text-[13px] font-medium hover:opacity-90 transition-opacity cursor-pointer"
+        >
+          <ArrowUpRight size={14} strokeWidth={2.5} />
+          Open Simulation
+        </button>
+      </div>
     </div>
   )
 }
 
 // ── Empty states ──────────────────────────────────────────────────────────────
 
-function EmptyState({ onNew }: { onNew: () => void }) {
+function EmptyRecents({ onNew }: { onNew: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center px-6">
-      <h2 className="text-xl font-semibold text-bone">No Simulation recorded</h2>
+      <h2 className="text-xl font-semibold text-bone">No Recent Simulations</h2>
       <p className="text-sm text-dust leading-relaxed">
-        You have not run any capital simulations.<br />
-        MARGIN requires a defined strategy and scenario to model outcomes.
+        Simulations appear here automatically each time you run one.
+      </p>
+      <button
+        onClick={onNew}
+        className="mt-3 px-6 py-3 bg-oxide text-carbon text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
+      >
+        Create New Simulation
+      </button>
+    </div>
+  )
+}
+
+function EmptySaved({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center px-6">
+      <h2 className="text-xl font-semibold text-bone">No Saved Simulations</h2>
+      <p className="text-sm text-dust leading-relaxed">
+        Run a simulation and click Save to preserve it here.
       </p>
       <button
         onClick={onNew}
@@ -167,6 +225,60 @@ function ComparisonEmptyState() {
   )
 }
 
+// ── Comparison card ───────────────────────────────────────────────────────────
+
+interface ComparisonCardProps {
+  entry:    ComparisonEntry
+  onOpen:   () => void
+  onDelete: () => void
+}
+
+function ComparisonCard({ entry, onOpen, onDelete }: ComparisonCardProps) {
+  const latest    = entry.versions[0]
+  const typeLabel = entry.comparisonType === 'strategy' ? 'Strategy Comparison' : 'Scenario Comparison'
+
+  return (
+    <div className="bg-graphite border border-border-default rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-5 pt-5 pb-4">
+        <span className="text-[14px] font-medium text-bone truncate mr-4">{entry.name}</span>
+        <span className="text-[12px] text-dust shrink-0">
+          Saved · {relativeTime(entry.savedAt)}
+        </span>
+      </div>
+
+      <div className="flex gap-10 px-5 pb-4">
+        <MetaCol label="Type"    value={typeLabel} />
+        <MetaCol label="Version" value={`v${latest?.version ?? 1}`} />
+        <div className="flex flex-col gap-1 min-w-0">
+          <span className="text-[11px] text-dust">Risk Levels</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {entry.riskLevels.map((level, i) => (
+              <RiskBadge key={i} level={level} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between px-5 py-3.5 border-t border-border-default">
+        <button
+          onClick={onDelete}
+          className="flex items-center gap-1.5 text-[13px] text-dust hover:text-bone transition-colors"
+        >
+          <Trash2 size={13} />
+          Delete
+        </button>
+        <button
+          onClick={onOpen}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-oxide text-carbon text-[13px] font-medium hover:opacity-90 transition-opacity cursor-pointer"
+        >
+          <ArrowUpRight size={14} strokeWidth={2.5} />
+          Open Comparison
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Home screen ───────────────────────────────────────────────────────────────
 
 type HomeTab = 'recent' | 'saved' | 'comparison'
@@ -178,15 +290,21 @@ const TABS: { id: HomeTab; label: string }[] = [
 ]
 
 interface HomeScreenProps {
-  onOpenSimulation: (simulationGroupId: string) => void
-  onNew:            () => void
+  onOpenSimulation:  (simulationGroupId: string) => void
+  onOpenRecent:      (runId: string) => void
+  onOpenComparison:  (comparisonGroupId: string) => void
+  onNew:             () => void
 }
 
-export default function HomeScreen({ onOpenSimulation, onNew }: HomeScreenProps) {
+export default function HomeScreen({ onOpenSimulation, onOpenRecent, onOpenComparison, onNew }: HomeScreenProps) {
   const [activeTab, setActiveTab] = useState<HomeTab>('recent')
-  const entries = useSavesStore(s => s.entries)
+  const entries             = useSavesStore(s => s.entries)
+  const recents             = useSavesStore(s => s.recents)
+  const comparisonEntries   = useComparisonSavesStore(s => s.entries)
 
-  const handleDelete = (entry: SaveEntry) => {
+  // ── Saved handlers ──────────────────────────────────────────────────────────
+
+  const handleDeleteSaved = (entry: SaveEntry) => {
     entry.versions.forEach(v => localStorage.removeItem(`margin_save_${v.saveId}`))
     useSavesStore.getState().removeEntry(entry.simulationGroupId)
   }
@@ -229,9 +347,25 @@ export default function HomeScreen({ onOpenSimulation, onNew }: HomeScreenProps)
     )
   }
 
-  // Recent: 5 most recently saved; Saved: all, newest first
-  const sorted = [...entries].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
-  const list   = activeTab === 'recent' ? sorted.slice(0, 5) : sorted
+  // ── Recent handlers ─────────────────────────────────────────────────────────
+
+  const handleDeleteRecent = (runId: string) => {
+    localStorage.removeItem(`margin_recent_${runId}`)
+    useSavesStore.getState().removeRecent(runId)
+  }
+
+  // ── Comparison handlers ─────────────────────────────────────────────────────
+
+  const handleDeleteComparison = (entry: ComparisonEntry) => {
+    entry.versions.forEach(v => localStorage.removeItem(`margin_comparison_${v.saveId}`))
+    useComparisonSavesStore.getState().removeEntry(entry.comparisonGroupId)
+  }
+
+  // ── Sorted lists ────────────────────────────────────────────────────────────
+
+  const sortedSaved        = [...entries].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+  const sortedRecents      = recents  // already newest-first (prepended on add)
+  const sortedComparisons  = [...comparisonEntries].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
 
   return (
     <div className="flex flex-1 flex-col bg-carbon overflow-hidden">
@@ -258,23 +392,57 @@ export default function HomeScreen({ onOpenSimulation, onNew }: HomeScreenProps)
 
       {/* Content */}
       {activeTab === 'comparison' ? (
-        <ComparisonEmptyState />
-      ) : list.length === 0 ? (
-        <EmptyState onNew={onNew} />
-      ) : (
-        <div className="flex-1 overflow-y-auto py-6 px-6">
-          <div className="max-w-[860px] mx-auto flex flex-col gap-3">
-            {list.map(entry => (
-              <SimCard
-                key={entry.simulationGroupId}
-                entry={entry}
-                onOpen={() => onOpenSimulation(entry.simulationGroupId)}
-                onDelete={() => handleDelete(entry)}
-                onDuplicate={() => handleDuplicate(entry)}
-              />
-            ))}
+        sortedComparisons.length === 0 ? (
+          <ComparisonEmptyState />
+        ) : (
+          <div className="flex-1 overflow-y-auto py-6 px-6">
+            <div className="max-w-[860px] mx-auto flex flex-col gap-3">
+              {sortedComparisons.map(entry => (
+                <ComparisonCard
+                  key={entry.comparisonGroupId}
+                  entry={entry}
+                  onOpen={() => onOpenComparison(entry.comparisonGroupId)}
+                  onDelete={() => handleDeleteComparison(entry)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )
+      ) : activeTab === 'recent' ? (
+        sortedRecents.length === 0 ? (
+          <EmptyRecents onNew={onNew} />
+        ) : (
+          <div className="flex-1 overflow-y-auto py-6 px-6">
+            <div className="max-w-[860px] mx-auto flex flex-col gap-3">
+              {sortedRecents.map(record => (
+                <RecentCard
+                  key={record.runId}
+                  record={record}
+                  onOpen={() => onOpenRecent(record.runId)}
+                  onDelete={() => handleDeleteRecent(record.runId)}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      ) : (
+        sortedSaved.length === 0 ? (
+          <EmptySaved onNew={onNew} />
+        ) : (
+          <div className="flex-1 overflow-y-auto py-6 px-6">
+            <div className="max-w-[860px] mx-auto flex flex-col gap-3">
+              {sortedSaved.map(entry => (
+                <SavedCard
+                  key={entry.simulationGroupId}
+                  entry={entry}
+                  onOpen={() => onOpenSimulation(entry.simulationGroupId)}
+                  onDelete={() => handleDeleteSaved(entry)}
+                  onDuplicate={() => handleDuplicate(entry)}
+                />
+              ))}
+            </div>
+          </div>
+        )
       )}
 
     </div>

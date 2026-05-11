@@ -4,7 +4,7 @@ import type { Strategy } from '../types'
 import type { SimulationConfig, SimulationResults } from './simulationStore'
 import type { ScenarioModifiers } from '../data/scenarioPresets'
 
-// ── Persistence types ─────────────────────────────────────────────────────────
+// ── Saved simulation types ────────────────────────────────────────────────────
 
 export interface VersionRecord {
   saveId:  string
@@ -22,11 +22,11 @@ export interface SaveEntry {
   capitalAllocation: number
   grossYieldPct:     number
   netYieldPct:       number
-  marketScenario?:   string   // raw MarketScenario enum value
+  marketScenario?:   string
   versions:          VersionRecord[]  // newest first
 }
 
-// Full snapshot stored in localStorage per saveId
+// Full snapshot per saveId
 export interface SavedSimulation {
   id:                string
   simulationGroupId: string
@@ -41,6 +41,31 @@ export interface SavedSimulation {
   capitalAllocation: number
 }
 
+// ── Recent run types ──────────────────────────────────────────────────────────
+
+// Lightweight index entry stored in Zustand persist
+export interface RecentRecord {
+  runId:             string
+  name:              string
+  runnedAt:          string
+  riskLevel:         string
+  strategy:          Strategy
+  capitalAllocation: number
+  marketScenario?:   string
+}
+
+// Full snapshot stored in localStorage per runId
+export interface RecentSnapshot {
+  runId:             string
+  name:              string
+  runnedAt:          string
+  config:            SimulationConfig
+  scenarioModifiers: ScenarioModifiers | null
+  results:           SimulationResults
+}
+
+const RECENTS_CAP = 30
+
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
 export function writeSave(obj: SavedSimulation): void {
@@ -52,17 +77,33 @@ export function readSave(saveId: string): SavedSimulation | null {
   return raw ? (JSON.parse(raw) as SavedSimulation) : null
 }
 
+export function writeRecent(snapshot: RecentSnapshot): void {
+  localStorage.setItem(`margin_recent_${snapshot.runId}`, JSON.stringify(snapshot))
+}
+
+export function readRecent(runId: string): RecentSnapshot | null {
+  const raw = localStorage.getItem(`margin_recent_${runId}`)
+  return raw ? (JSON.parse(raw) as RecentSnapshot) : null
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 interface SavesState {
+  // Explicitly saved simulations
   entries: SaveEntry[]
   upsert: (
     simulationGroupId: string,
     meta:    Omit<SaveEntry, 'versions'>,
     version: VersionRecord,
   ) => void
-  updateName:    (simulationGroupId: string, name: string) => void
-  removeEntry:   (simulationGroupId: string) => void
+  updateName:  (simulationGroupId: string, name: string) => void
+  removeEntry: (simulationGroupId: string) => void
+
+  // Auto-recorded recent runs
+  recents:    RecentRecord[]
+  addRecent:  (record: RecentRecord) => void
+  removeRecent: (runId: string) => void
+
   clear: () => void
 }
 
@@ -97,7 +138,19 @@ export const useSavesStore = create<SavesState>()(
           entries: s.entries.filter(e => e.simulationGroupId !== simulationGroupId),
         })),
 
-      clear: () => set({ entries: [] }),
+      recents: [],
+
+      addRecent: (record) =>
+        set(s => ({
+          recents: [record, ...s.recents].slice(0, RECENTS_CAP),
+        })),
+
+      removeRecent: (runId) =>
+        set(s => ({
+          recents: s.recents.filter(r => r.runId !== runId),
+        })),
+
+      clear: () => set({ entries: [], recents: [] }),
     }),
     { name: 'margin_saves_index' }
   )

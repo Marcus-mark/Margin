@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
-import { useSimulationStore } from '../store/simulationStore'
+import { useSimulationStore } from '../store/useSimulationStore'
 import {
   SCENARIO_PRESETS, BAND_PRESETS, fmtBand, windowFor,
   type ScenarioPreset,

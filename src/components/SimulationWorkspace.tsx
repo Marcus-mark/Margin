@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useContext, useEffect, useRef } from 'react'
 import { ArrowUpRight, ChevronDown } from 'lucide-react'
-import { useSimulationStore } from '../store/simulationStore'
-import { useSavesStore, writeSave, readSave } from '../store/savesStore'
-import type { SavedSimulation } from '../store/savesStore'
+import { useSimulationStore, SimulationStoreContext } from '../store/useSimulationStore'
+import { useSavesStore, writeSave, readSave, writeRecent } from '../store/savesStore'
+import type { SavedSimulation, RecentSnapshot } from '../store/savesStore'
 import { runSimulation } from '../engine'
 import type { SimulationConfig as EngineConfig } from '../types'
 import InputPanel from './InputPanel'
@@ -167,15 +167,30 @@ function VersionHistoryBar({ onLoadVersion }: { onLoadVersion: (saveId: string) 
 
 // ── Workspace ─────────────────────────────────────────────────────────────────
 
-export default function SimulationWorkspace({ onCompare }: { onCompare?: () => void }) {
+export default function SimulationWorkspace({
+  onCompare,
+  onNameChange,
+}: {
+  onCompare?:    () => void
+  onNameChange?: (name: string) => void
+}) {
+  const storeApi = useContext(SimulationStoreContext)!
   const { state, results, isStale } = useSimulationStore()
+
+  // Sync tab label whenever the simulation name changes
+  const onNameChangeRef = useRef(onNameChange)
+  onNameChangeRef.current = onNameChange
+  const simName = useSimulationStore(s => s.config?.name ?? '')
+  useEffect(() => {
+    onNameChangeRef.current?.(simName.trim() || 'Untitled Simulation')
+  }, [simName])
 
   const showStaleBanner = state === 'CONFIG' && isStale && !!results
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
   const handleSave = () => {
-    const s = useSimulationStore.getState()
+    const s = storeApi.getState()
     if (s.state !== 'COMPUTED' || !s.config || !s.results) return
 
     const saveId      = crypto.randomUUID()
@@ -223,7 +238,7 @@ export default function SimulationWorkspace({ onCompare }: { onCompare?: () => v
   const handleLoadVersion = (saveId: string) => {
     const save = readSave(saveId)
     if (!save) return
-    useSimulationStore.getState().loadVersion(
+    storeApi.getState().loadVersion(
       save.config,
       save.results,
       save.scenarioModifiers,
@@ -317,7 +332,30 @@ function RunButton({ onCompare }: { onCompare?: () => void }) {
         runSimulation(engineConfig),
         new Promise(resolve => setTimeout(resolve, 1200)),
       ])
-      setResults(result as Awaited<ReturnType<typeof runSimulation>>)
+      const typedResult = result as Awaited<ReturnType<typeof runSimulation>>
+      setResults(typedResult)
+
+      // Auto-record every completed run in Recents
+      const runId    = crypto.randomUUID()
+      const runnedAt = new Date().toISOString()
+      const snapshot: RecentSnapshot = {
+        runId,
+        name:              config.name || 'Untitled',
+        runnedAt,
+        config,
+        scenarioModifiers: scenarioModifiers ?? null,
+        results:           typedResult,
+      }
+      writeRecent(snapshot)
+      useSavesStore.getState().addRecent({
+        runId,
+        name:              snapshot.name,
+        runnedAt,
+        riskLevel:         typedResult.riskLevel,
+        strategy:          config.strategy!,
+        capitalAllocation: config.capitalAllocation,
+        marketScenario:    config.marketScenario ?? undefined,
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setError({ code: 'CALC_ERROR', message })

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Info } from 'lucide-react'
-import { useSimulationStore, type Strategy } from '../store/simulationStore'
+import { useSimulationStore } from '../store/useSimulationStore'
+import type { Strategy } from '../store/simulationStore'
 
 const OPTIONS: {
   id: Strategy

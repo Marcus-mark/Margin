@@ -2,7 +2,7 @@ import { Home, Plus, X } from 'lucide-react'
 
 export type Tab =
   | { type: 'simulation'; id: string; name: string }
-  | { type: 'comparison'; id: string; name: string; parentSimId: string }
+  | { type: 'comparison'; id: string; name: string; parentSimId: string; compareType?: 'strategy' | 'scenario' }
 
 type SubHeaderProps = {
   tabs:       Tab[]

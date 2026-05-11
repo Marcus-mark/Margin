@@ -195,8 +195,8 @@ function RecapCard({ insights }: { insights: AIInsights }) {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
-export default function CompareResultsPanel() {
-  const { results, config } = useCompareStore()
+export default function CompareResultsPanel({ onSave }: { onSave?: () => void }) {
+  const { results, config, phase } = useCompareStore()
   if (!results || !config) return null
 
   return (
@@ -214,9 +214,21 @@ export default function CompareResultsPanel() {
 
       {/* Save CTA */}
       <div className="flex justify-center pt-2 pb-4">
-        <button className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium bg-oxide text-carbon hover:opacity-90 transition-opacity cursor-pointer">
-          Save Comparison
-        </button>
+        {phase === 'SAVED' ? (
+          <button
+            disabled
+            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium bg-ash border border-border-default text-dust cursor-not-allowed"
+          >
+            Comparison Saved
+          </button>
+        ) : (
+          <button
+            onClick={onSave}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium bg-oxide text-carbon hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            Save Comparison
+          </button>
+        )}
       </div>
 
     </div>

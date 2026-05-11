@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Pencil, Plus, X } from 'lucide-react'
-import { useSimulationStore, type Asset } from '../store/simulationStore'
+import { useSimulationStore } from '../store/useSimulationStore'
+import type { Asset } from '../store/simulationStore'
 import AdvancedRiskControl from './AdvancedRiskControl'
 import StrategySelection from './StrategySelection'
 import ScenarioSetup from './ScenarioSetup'

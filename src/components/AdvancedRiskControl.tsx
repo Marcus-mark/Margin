@@ -1,12 +1,27 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, Lock } from 'lucide-react'
-import { useSimulationStore } from '../store/simulationStore'
+import { useSimulationStore } from '../store/useSimulationStore'
 
-const STRESS_OPTIONS = ['1.0x', '1.5x', '2.0x', '2.5x', '3.0x']
+const STRESS_OPTIONS    = ['1.0x', '1.5x', '2.0x', '2.5x', '3.0x']
 const TAIL_RISK_OPTIONS = ['0.5x', '1.0x', '1.5x', '2.0x']
 
+const DISPLAY_TO_CAP: Record<string, number | null> = {
+  '100%': null, '75%': 0.75, '50%': 0.50, '25%': 0.25,
+}
+
+function displayToCap(display: string): number | null {
+  return DISPLAY_TO_CAP[display] ?? null
+}
+
+function capToDisplay(cap: number | null | undefined): string {
+  if (cap == null || cap >= 1) return '100%'
+  if (cap >= 0.75) return '75%'
+  if (cap >= 0.50) return '50%'
+  return '25%'
+}
+
 export default function AdvancedRiskControl() {
-  const { config, scenarioModifiers, state } = useSimulationStore()
+  const { config, setConfig, scenarioModifiers, state } = useSimulationStore()
   const unlocked = (config?.capitalAllocation ?? 0) >= 10
   const isLocked = state !== 'INIT' && state !== 'CONFIG'
 
@@ -16,6 +31,9 @@ export default function AdvancedRiskControl() {
   const [tailRisk, setTailRisk] = useState('1.0x')
   const [stress, setStress] = useState('1.0x')
   const [rebalance, setRebalance] = useState('Medium')
+  const [exposureLimit, setExposureLimit] = useState(() =>
+    capToDisplay(config?.riskParameters?.exposureCap)
+  )
 
   useEffect(() => {
     if (!scenarioModifiers) return
@@ -79,14 +97,26 @@ export default function AdvancedRiskControl() {
             {/* Draw-down cap */}
             <ControlRow label="Draw-down cap">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-dust">Unrestricted</span>
+                <span className="text-xs text-dust">{drawdownOn ? 'Restricted' : 'Unrestricted'}</span>
                 <Toggle on={drawdownOn} onChange={setDrawdownOn} color="oxide" />
               </div>
             </ControlRow>
 
             {/* Exposure limit */}
             <ControlRow label="Exposure limit (Capital allocation)">
-              <SelectPill value="100%" onChange={() => {}} options={['100%', '75%', '50%', '25%']} />
+              <SelectPill
+                value={exposureLimit}
+                onChange={(v) => {
+                  setExposureLimit(v)
+                  setConfig({
+                    riskParameters: {
+                      ...(config?.riskParameters ?? { leverageCap: null, volatilitySensitivity: null }),
+                      exposureCap: displayToCap(v),
+                    },
+                  })
+                }}
+                options={['100%', '75%', '50%', '25%']}
+              />
             </ControlRow>
 
             {/* Risk Modifiers sub-header */}
