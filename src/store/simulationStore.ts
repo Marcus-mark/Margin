@@ -105,6 +105,7 @@ interface SimulationState {
   retryFromError:      () => void
   saveSimulation:      (saveId: string) => string  // returns simulationGroupId
   updateSavedName:     (name: string) => void
+  loadVersion:         (config: SimulationConfig, results: SimulationResults, scenarioModifiers: ScenarioModifiers | null, saveId: string) => void
   reset:               () => void
 }
 
@@ -168,6 +169,9 @@ export const useSimulationStore = create<SimulationState>()((set, get) => ({
     set(s => ({
       config: s.config ? { ...s.config, name } : s.config,
     })),
+
+  loadVersion: (config, results, scenarioModifiers, saveId) =>
+    set({ config, results, scenarioModifiers, saveId, state: 'SAVED', isStale: false }),
 
   reset: () =>
     set({ ...INITIAL_STATE }),

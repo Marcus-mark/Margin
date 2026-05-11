@@ -1,11 +1,28 @@
 import { useState } from 'react'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, ChevronDown } from 'lucide-react'
 import { useSimulationStore } from '../store/simulationStore'
+import { useSavesStore, writeSave, readSave } from '../store/savesStore'
+import type { SavedSimulation } from '../store/savesStore'
 import { runSimulation } from '../engine'
 import type { SimulationConfig as EngineConfig } from '../types'
 import InputPanel from './InputPanel'
+import SavedInputPanel from './SavedInputPanel'
 import ResultsPanel from './ResultsPanel'
-import SaveModal from './SaveModal'
+
+// ── Version history helpers ───────────────────────────────────────────────────
+
+function versionLabel(version: number, maxVersion: number): string {
+  if (version === maxVersion) return 'Current (Auto-saved)'
+  if (version === 1)          return 'Initial creation (baseline model)'
+  return 'Previous snapshot (Modified scenario inputs)'
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
 
 // ── Stale results banner ──────────────────────────────────────────────────────
 
@@ -71,8 +88,6 @@ function RunningPanel() {
   )
 }
 
-// ── Workspace ─────────────────────────────────────────────────────────────────
-
 function ErrorPanel() {
   const { error, retryFromError } = useSimulationStore()
   return (
@@ -93,44 +108,160 @@ function ErrorPanel() {
   )
 }
 
+// ── Version history bar ───────────────────────────────────────────────────────
+
+function VersionHistoryBar({ onLoadVersion }: { onLoadVersion: (saveId: string) => void }) {
+  const [open, setOpen] = useState(false)
+
+  const groupId      = useSimulationStore(s => s.simulationGroupId)
+  const currentSaveId = useSimulationStore(s => s.saveId)
+  const entry        = useSavesStore(s => s.entries.find(e => e.simulationGroupId === groupId))
+  const versions     = entry?.versions ?? []
+  const maxVer       = versions.reduce((m, v) => Math.max(m, v.version), 0)
+
+  if (versions.length === 0) return null
+
+  return (
+    <div className="relative flex items-center justify-end px-4 py-2.5 border-b border-border-default shrink-0 bg-carbon">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-[13px] text-bone hover:text-dust transition-colors"
+      >
+        Version History
+        <ChevronDown
+          size={13}
+          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <>
+          {/* Click-away backdrop */}
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute top-full right-4 mt-1 w-[300px] bg-graphite border border-border-default rounded-xl shadow-xl z-20 overflow-hidden">
+            {versions.map((v, i) => (
+              <button
+                key={v.saveId}
+                onClick={() => { onLoadVersion(v.saveId); setOpen(false) }}
+                className={[
+                  'w-full flex items-center justify-between px-4 py-3 text-left hover:bg-ash/60 transition-colors',
+                  v.saveId === currentSaveId ? 'bg-ash/40' : '',
+                  i < versions.length - 1 ? 'border-b border-border-default' : '',
+                ].join(' ')}
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-bone">
+                    {versionLabel(v.version, maxVer)}
+                  </span>
+                  <span className="text-[11px] text-dust/50">{fmtDate(v.savedAt)}</span>
+                </div>
+                <span className="text-[12px] text-dust ml-3 shrink-0">v{v.version}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Workspace ─────────────────────────────────────────────────────────────────
+
 export default function SimulationWorkspace({ onCompare }: { onCompare?: () => void }) {
-  const { state, results, isStale, editInputs } = useSimulationStore()
-  const [showSaveModal, setShowSaveModal] = useState(false)
+  const { state, results, isStale } = useSimulationStore()
 
   const showStaleBanner = state === 'CONFIG' && isStale && !!results
 
+  // ── Save ──────────────────────────────────────────────────────────────────
+
+  const handleSave = () => {
+    const s = useSimulationStore.getState()
+    if (s.state !== 'COMPUTED' || !s.config || !s.results) return
+
+    const saveId      = crypto.randomUUID()
+    const saveVersion = s.version
+    const groupId     = s.saveSimulation(saveId)
+    const savedAt     = new Date().toISOString()
+
+    const fullSave: SavedSimulation = {
+      id:                saveId,
+      simulationGroupId: groupId,
+      version:           saveVersion,
+      name:              s.config.name,
+      savedAt,
+      config:            s.config,
+      scenarioModifiers: s.scenarioModifiers ?? {
+        stressValue: '1.0x', tailRisk: '1.0x', rebalanceSensitivity: 'Medium',
+      },
+      results:           s.results,
+      riskLevel:         s.results.riskLevel,
+      strategy:          s.config.strategy!,
+      capitalAllocation: s.config.capitalAllocation,
+    }
+
+    writeSave(fullSave)
+
+    useSavesStore.getState().upsert(
+      groupId,
+      {
+        simulationGroupId: groupId,
+        name:              s.config.name,
+        savedAt,
+        riskLevel:         s.results.riskLevel,
+        strategy:          s.config.strategy!,
+        capitalAllocation: s.config.capitalAllocation,
+        grossYieldPct:     s.results.grossYieldPct,
+        netYieldPct:       s.results.netYieldPct,
+      },
+      { saveId, version: saveVersion, savedAt, name: s.config.name },
+    )
+  }
+
+  // ── Load version ──────────────────────────────────────────────────────────
+
+  const handleLoadVersion = (saveId: string) => {
+    const save = readSave(saveId)
+    if (!save) return
+    useSimulationStore.getState().loadVersion(
+      save.config,
+      save.results,
+      save.scenarioModifiers,
+      save.id,
+    )
+  }
+
+  // ── Right panel content ───────────────────────────────────────────────────
+
   function rightContent() {
     if (state === 'RUNNING') return <RunningPanel />
-    if (state === 'ERROR') return <ErrorPanel />
-    if (results) return <ResultsPanel />
+    if (state === 'ERROR')   return <ErrorPanel />
+    if (results)             return <ResultsPanel onSave={handleSave} />
     return <EmptyPanel />
   }
 
   return (
     <div className="flex flex-1 overflow-hidden">
 
-      {/* Left panel — inputs */}
+      {/* Left panel — inputs (read-only when SAVED) */}
       <div className="w-[420px] shrink-0 bg-graphite border-r border-border-default flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto">
-          <InputPanel />
+          {state === 'SAVED' ? <SavedInputPanel /> : <InputPanel />}
         </div>
         <div className="px-4 py-3 border-t border-border-default shrink-0 flex justify-end">
-          <RunButton onCompare={onCompare} onSave={() => setShowSaveModal(true)} />
+          <RunButton onCompare={onCompare} />
         </div>
       </div>
 
       {/* Right panel — outputs */}
-      <div className="flex flex-1 flex-col bg-carbon overflow-y-auto">
-        {showStaleBanner && <StaleBanner />}
-        {rightContent()}
+      <div className="flex flex-1 flex-col bg-carbon overflow-hidden">
+        {state === 'SAVED' && (
+          <VersionHistoryBar onLoadVersion={handleLoadVersion} />
+        )}
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          {showStaleBanner && <StaleBanner />}
+          {rightContent()}
+        </div>
       </div>
-
-      {showSaveModal && (
-        <SaveModal
-          onClose={() => setShowSaveModal(false)}
-          onEditInput={() => { editInputs(); setShowSaveModal(false) }}
-        />
-      )}
 
     </div>
   )
@@ -138,7 +269,7 @@ export default function SimulationWorkspace({ onCompare }: { onCompare?: () => v
 
 // ── Run / Edit button ─────────────────────────────────────────────────────────
 
-function RunButton({ onCompare, onSave }: { onCompare?: () => void; onSave?: () => void }) {
+function RunButton({ onCompare }: { onCompare?: () => void }) {
   const {
     state, config, scenarioModifiers, results,
     startRun, setResults, setError, editInputs,
@@ -200,7 +331,7 @@ function RunButton({ onCompare, onSave }: { onCompare?: () => void; onSave?: () 
       : 'bg-oxide text-carbon hover:opacity-90 cursor-pointer',
   ].join(' ')
 
-  // ERROR — editing possible but no valid results to compare
+  // ERROR
   if (state === 'ERROR') {
     return (
       <button onClick={editInputs} className={secBtn}>
@@ -209,28 +340,17 @@ function RunButton({ onCompare, onSave }: { onCompare?: () => void; onSave?: () 
     )
   }
 
-  // Post-run, not yet editing
+  // Post-run (COMPUTED or SAVED)
   if (state === 'COMPUTED' || state === 'SAVED') {
     return (
       <div className="flex items-center gap-2">
         <button className={secBtn} onClick={onCompare}>Compare Strategy</button>
         <button onClick={editInputs} className={secBtn}>Edit Inputs</button>
-        {state === 'COMPUTED'
-          ? (
-            <button onClick={onSave} className={priBtn(false)}>
-              Save
-            </button>
-          ) : (
-            <button onClick={onSave} className={secBtn}>
-              Saved ✓
-            </button>
-          )
-        }
       </div>
     )
   }
 
-  // Edit mode — results exist, user is adjusting inputs
+  // Edit mode — results exist
   if (editable && results) {
     return (
       <div className="flex items-center gap-2">

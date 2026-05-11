@@ -49,8 +49,8 @@ function Row({ label, children, last = false }: {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
-export default function ResultsPanel() {
-  const { results, config } = useSimulationStore()
+export default function ResultsPanel({ onSave }: { onSave?: () => void }) {
+  const { results, config, state } = useSimulationStore()
   if (!results) return null
 
   const r       = results
@@ -157,6 +157,25 @@ export default function ResultsPanel() {
 
       {/* ── Bottom full-width separator ─────────────────────────────────────── */}
       <div className="border-t border-border-default" />
+
+      {/* ── Save CTA ────────────────────────────────────────────────────────── */}
+      <div className="flex justify-center py-6 pb-8">
+        {state === 'COMPUTED' ? (
+          <button
+            onClick={onSave}
+            className="px-8 py-3 rounded-xl text-sm font-medium bg-oxide text-carbon hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            Save Simulation
+          </button>
+        ) : state === 'SAVED' ? (
+          <button
+            disabled
+            className="px-8 py-3 rounded-xl text-sm font-medium bg-ash border border-border-default text-dust cursor-not-allowed"
+          >
+            Simulation Saved
+          </button>
+        ) : null}
+      </div>
 
     </div>
   )
