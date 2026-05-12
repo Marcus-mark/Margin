@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Sparkles, Loader2, ChevronDown } from 'lucide-react'
 import { usePreferencesStore } from '../store/preferencesStore'
 import type { ExplainData, AIExplanationState, AIFollowUp } from '../store/simulationStore'

@@ -197,7 +197,7 @@ function VersionHistoryBar({
 
 // ── Footer CTA buttons ────────────────────────────────────────────────────────
 
-function StrategyFooter({ onSave }: { onSave: () => void }) {
+function StrategyFooter({ onSave: _onSave }: { onSave: () => void }) {
   const { phase, config, startRun, setResults, setError, editInputs } = useCompareStore()
 
   const running = phase === 'RUNNING'
@@ -255,7 +255,7 @@ function StrategyFooter({ onSave }: { onSave: () => void }) {
   )
 }
 
-function ScenarioFooter({ onSave }: { onSave: () => void }) {
+function ScenarioFooter({ onSave: _onSave }: { onSave: () => void }) {
   const { phase, config, startRun, setResults, setError, editInputs } =
     useScenarioCompareStore()
 

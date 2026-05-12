@@ -289,7 +289,7 @@ export default function SimulationWorkspace({
 function RunButton({ onCompare }: { onCompare?: () => void }) {
   const {
     state, config, scenarioModifiers, results,
-    startRun, setResults, setError, editInputs,
+    startRun, setResults, setError, editInputs, setRunId,
   } = useSimulationStore()
 
   const running  = state === 'RUNNING'
@@ -349,7 +349,7 @@ function RunButton({ onCompare }: { onCompare?: () => void }) {
         aiExplanation:     null,
       }
       writeRecent(snapshot)
-      storeApi.getState().setRunId(runId)
+      setRunId(runId)
       useSavesStore.getState().addRecent({
         runId,
         name:              snapshot.name,
