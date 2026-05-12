@@ -212,6 +212,7 @@ export default function SimulationWorkspace({
       riskLevel:         s.results.riskLevel,
       strategy:          s.config.strategy!,
       capitalAllocation: s.config.capitalAllocation,
+      aiExplanation:     s.aiExplanation ?? null,
     }
 
     writeSave(fullSave)
@@ -345,8 +346,10 @@ function RunButton({ onCompare }: { onCompare?: () => void }) {
         config,
         scenarioModifiers: scenarioModifiers ?? null,
         results:           typedResult,
+        aiExplanation:     null,
       }
       writeRecent(snapshot)
+      storeApi.getState().setRunId(runId)
       useSavesStore.getState().addRecent({
         runId,
         name:              snapshot.name,

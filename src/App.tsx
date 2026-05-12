@@ -83,6 +83,7 @@ function App() {
       isStale:           false,
       error:             null,
       version:           latest.version + 1,
+      aiExplanation:     save.aiExplanation ?? null,
     })
     storeRegistry.current.set(id, store)
     setTabs(prev => [...prev, { type: 'simulation', id, name: entry.name }])
@@ -106,6 +107,7 @@ function App() {
       isStale:           false,
       error:             null,
       version:           1,
+      aiExplanation:     snapshot.aiExplanation ?? null,
     })
     storeRegistry.current.set(id, store)
     setTabs(prev => [...prev, {

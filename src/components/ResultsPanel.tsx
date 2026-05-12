@@ -154,7 +154,9 @@ export default function ResultsPanel({ onSave }: { onSave?: () => void }) {
       </div>
 
       {/* ── AI explanation ──────────────────────────────────────────────────── */}
-      <ExplainPanel />
+      <div className="mx-[10%] mt-6">
+        <ExplainPanel />
+      </div>
 
       {/* ── Save CTA ────────────────────────────────────────────────────────── */}
       <div className="flex justify-center py-6 pb-8">

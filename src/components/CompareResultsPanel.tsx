@@ -1,6 +1,7 @@
 import { ArrowUpRight } from 'lucide-react'
 import { useCompareStore } from '../store/compareStore'
 import type { StrategyCompareResult, AIInsights } from '../store/compareStore'
+import AIExplainPanel from './AIExplainPanel'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -206,6 +207,8 @@ export default function CompareResultsPanel({ onSave }: { onSave?: () => void })
         strategies={results.strategies}
         baseline={config.baselineStrategy}
       />
+
+      <AIExplainPanel results={results} />
 
       <SummaryCard     insights={results.insights} />
       <WhyRiskCard     insights={results.insights} />

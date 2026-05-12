@@ -5,6 +5,40 @@ import type { ScenarioModifiers } from '../data/scenarioPresets'
 
 export type { ScenarioModifiers }
 
+// ─── AI explanation types (serialisable — stored in save/recent snapshots) ────
+
+export interface ExplainData {
+  worstCase: {
+    condition:   string
+    metricLabel: string
+    metricValue: string
+    detail:      string
+  }
+  whyRiskExists: {
+    title:   string
+    bullets: string[]
+  }
+  variableImpact: {
+    rows: Array<{ label: string; value: string }>
+  }
+  stressScenario: {
+    marketValue: string
+    lines:       string[]
+  }
+  summary: string
+}
+
+export interface AIFollowUp {
+  question: string
+  answer:   string
+}
+
+export interface AIExplanationState {
+  mode:      'novice' | 'advanced'
+  data:      ExplainData
+  followUps: AIFollowUp[]
+}
+
 // ─── Simulation lifecycle states ─────────────────────────────────────────────
 
 export type SimulationPhase =
@@ -76,6 +110,9 @@ export interface SimulationState {
 
   scenarioModifiers: ScenarioModifiers | null
 
+  aiExplanation: AIExplanationState | null
+  runId:         string | null  // tracks latest recent-run for lazy AI snapshot updates
+
   // Actions
   setConfig:           (partial: Partial<SimulationConfig>) => void
   setScenarioModifiers:(m: ScenarioModifiers | null) => void
@@ -86,8 +123,10 @@ export interface SimulationState {
   retryFromError:      () => void
   saveSimulation:      (saveId: string) => string  // returns simulationGroupId
   updateSavedName:     (name: string) => void
-  loadVersion:         (config: SimulationConfig, results: SimulationResults, scenarioModifiers: ScenarioModifiers | null, saveId: string) => void
+  loadVersion:         (config: SimulationConfig, results: SimulationResults, scenarioModifiers: ScenarioModifiers | null, saveId: string, aiExplanation?: AIExplanationState | null) => void
   reset:               () => void
+  setAIExplanation:    (explanation: AIExplanationState) => void
+  setRunId:            (runId: string) => void
 }
 
 export type SimulationStoreApi = StoreApi<SimulationState>
@@ -122,6 +161,8 @@ const INITIAL_STATE = {
   version:           1,
   isStale:           false,
   scenarioModifiers: null,
+  aiExplanation:     null,
+  runId:             null,
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
@@ -141,7 +182,7 @@ export function createSimulationStore(): SimulationStoreApi {
       set({ scenarioModifiers: m }),
 
     startRun: () =>
-      set({ state: 'RUNNING', error: null }),
+      set({ state: 'RUNNING', error: null, aiExplanation: null }),
 
     setResults: (results) =>
       set({ results, state: 'COMPUTED', isStale: false }),
@@ -172,10 +213,29 @@ export function createSimulationStore(): SimulationStoreApi {
         config: s.config ? { ...s.config, name } : s.config,
       })),
 
-    loadVersion: (config, results, scenarioModifiers, saveId) =>
-      set({ config, results, scenarioModifiers, saveId, state: 'SAVED', isStale: false }),
+    loadVersion: (config, results, scenarioModifiers, saveId, aiExplanation) =>
+      set({ config, results, scenarioModifiers, saveId, state: 'SAVED', isStale: false, aiExplanation: aiExplanation ?? null }),
 
     reset: () =>
       set({ ...INITIAL_STATE }),
+
+    setAIExplanation: (explanation) => {
+      set({ aiExplanation: explanation })
+      // Also patch the recent snapshot so reopening from Recents restores AI state
+      const { runId } = get()
+      if (runId) {
+        try {
+          const raw = localStorage.getItem(`margin_recent_${runId}`)
+          if (raw) {
+            localStorage.setItem(
+              `margin_recent_${runId}`,
+              JSON.stringify({ ...(JSON.parse(raw) as object), aiExplanation: explanation }),
+            )
+          }
+        } catch { /* non-critical */ }
+      }
+    },
+
+    setRunId: (runId) => set({ runId }),
   }))
 }

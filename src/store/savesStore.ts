@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Strategy } from '../types'
-import type { SimulationConfig, SimulationResults } from './simulationStore'
+import type { SimulationConfig, SimulationResults, AIExplanationState } from './simulationStore'
 import type { ScenarioModifiers } from '../data/scenarioPresets'
 
 // ── Saved simulation types ────────────────────────────────────────────────────
@@ -39,6 +39,7 @@ export interface SavedSimulation {
   riskLevel:         string
   strategy:          Strategy
   capitalAllocation: number
+  aiExplanation?:    AIExplanationState | null
 }
 
 // ── Recent run types ──────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ export interface RecentSnapshot {
   config:            SimulationConfig
   scenarioModifiers: ScenarioModifiers | null
   results:           SimulationResults
+  aiExplanation?:    AIExplanationState | null
 }
 
 const RECENTS_CAP = 30

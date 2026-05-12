@@ -1,6 +1,7 @@
 import { ArrowUpRight } from 'lucide-react'
 import { useScenarioCompareStore } from '../store/scenarioCompareStore'
 import type { ScenarioColumnResult, ScenarioAIInsights } from '../store/scenarioCompareStore'
+import AIExplainPanel from './AIExplainPanel'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -193,6 +194,9 @@ export default function ScenarioCompareResultsPanel({ onSave }: { onSave?: () =>
     <div className="w-full flex flex-col gap-6 px-6 py-6">
 
       <ScenarioTable columns={results.columns} />
+
+      <AIExplainPanel results={results} />
+
       <SummaryCard     insights={results.insights} />
       <WhyRiskCard     insights={results.insights} />
       <SensitivityCard insights={results.insights} />

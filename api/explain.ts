@@ -1,110 +1,40 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-// ── System prompts ─────────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are MARGIN's explanation engine. You explain DeFi simulation results in plain language. You have access to computed results only. Do not predict future prices or market movements. Do not give financial advice. Do not reference any market data, prices, or events not contained in the payload provided to you. Do not use numbers that are not in the data provided. If expertiseMode is NOVICE use plain English only, no jargon. If expertiseMode is ADVANCED include technical terms.
 
-const BASE_RULES = `\
-You are MARGIN's explanation engine. You explain DeFi simulation results in plain language.
+Return only a valid JSON object with exactly these five top-level keys. Do not include markdown, code blocks, or any text outside the JSON object.
 
-Rules:
-- Do not predict market movements.
-- Do not give financial advice.
-- Do not use numbers that are not in the data provided to you.
-- Only explain what the computed results show.
-- Return ONLY a valid JSON object — no markdown, no code fences, no prose outside the JSON.
+"worstCase": object with four string fields — "condition" (short context phrase, e.g. "Under adverse but realistic conditions"), "metricLabel" (the label before the key metric, e.g. "Capital declines up to"), "metricValue" (the numeric value with sign and unit from the data, e.g. "-18.4%"), "detail" (one to two sentences on the primary driver and its practical meaning).
 
-Return a JSON object with exactly these four fields, each a string of two to four sentences:
-{
-  "summary": "...",
-  "whyRiskExists": "...",
-  "variableImpact": "...",
-  "assumptionSensitivity": "..."
-}
+"whyRiskExists": object with two fields — "title" (a sentence beginning with "Why this risk exists?" naming the primary drivers), "bullets" (array of two to four strings, each a distinct risk driver).
 
-Field definitions:
-- summary: The overall risk verdict — what the risk level and drawdown mean in practical terms for this capital amount.
-- whyRiskExists: Which specific inputs (strategy, scenario, volatility, correlation) drove the risk level, and why.
-- variableImpact: Which single scenario parameter or risk modifier had the largest effect on the outcome, and how.
-- assumptionSensitivity: What would change most if one key input shifted — for example if volatility were lower, or the time horizon shorter.`
+"variableImpact": object with one field — "rows" (array of three to four objects, each with "label" and "value" strings for two-column display).
 
-const NOVICE_INSTRUCTION = `\
-Language style — NOVICE MODE:
-Write as if explaining to someone who has never invested in crypto before.
-- Use everyday analogies (e.g. "think of this like a savings account that can lose value").
-- Never use acronyms like IL, APR, APY, LP, or DeFi without immediately explaining them in plain words.
-- Keep sentences short. One idea per sentence.
-- Replace financial jargon with plain equivalents: "drawdown" → "drop in value", "volatility" → "how much prices swing", "yield" → "money you earn".
-- Make the stakes feel real and human: "if you put in $10,000, the worst case is you could end up with roughly $X".`
+"stressScenario": object with two fields — "marketValue" (the stress decline percentage from the data, e.g. "-30%"), "lines" (array of two to four strings describing stress outcomes; wrap any numeric metric values to visually emphasize in curly braces, e.g. "Drawdown increases to {-32%}").
 
-const ADVANCED_INSTRUCTION = `\
-Language style — ADVANCED MODE:
-Write for a DeFi practitioner with hands-on protocol experience.
-- Use precise on-chain terminology without explanation: IL, delta exposure, fee APR, liquidity concentration, rebalancing friction, drawdown duration, yield-risk spread, tail-risk quantile.
-- Reference the specific strategy mechanics (e.g. "concentrated LP position within a ±X% band amplifies IL nonlinearly near the band edges").
-- Frame risk in portfolio terms: mention basis risk, correlation assumptions, scenario stress multipliers.
-- Be analytically direct — state what the numbers imply for position sizing, hedging decisions, or exit triggers.`
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function pct(n: number): string {
-  return (n * 100).toFixed(1) + '%'
-}
-
-function usd(n: number): string {
-  return '$ ' + Math.round(Math.abs(n)).toLocaleString('en-US')
-}
-
-function buildUserMessage(body: Record<string, unknown>): string {
-  const config  = (body.config  ?? {}) as Record<string, unknown>
-  const results = (body.results ?? {}) as Record<string, unknown>
-
-  const lines: string[] = [
-    '=== SIMULATION INPUTS ===',
-    `Name: ${config.name ?? 'Unnamed'}`,
-    `Strategy: ${config.strategy ?? 'unknown'}`,
-    `Capital Allocation: ${usd(Number(config.capitalAllocation ?? 0))}`,
-    `Market Scenario: ${config.marketScenario ?? 'unknown'}`,
-    `Time Horizon: ${config.timePeriodDays ?? '?'} days`,
-    `Volatility: ${config.volatility ?? '?'}`,
-    `Correlation: ${config.correlation ?? '?'}`,
-    '',
-    '=== SIMULATION RESULTS ===',
-    `Risk Level: ${String(results.riskLevel ?? '?').toUpperCase()}`,
-    `Max Drawdown: ${pct(Number(results.maxDrawdownPct ?? 0))} (${usd(Number(results.maxDrawdownUSD ?? 0))})`,
-    `Capital at Risk: ${usd(Number(results.capitalAtRiskUSD ?? 0))} (${pct(Number(results.capitalAtRiskPct ?? 0))})`,
-    `Volatility Exposure Score: ${Number(results.volatilityExposure ?? 0).toFixed(2)}`,
-    `Drawdown Duration: ${Math.round(Number(results.drawdownDurationDays ?? 0))} days`,
-    `Time to Recovery: ${Math.round(Number(results.timeToRecoveryDays ?? 0))} days`,
-    `Gross Yield: ${pct(Number(results.grossYieldPct ?? 0))} (${usd(Number(results.grossYieldUSD ?? 0))})`,
-    `Net Yield: ${pct(Number(results.netYieldPct ?? 0))} (${usd(Number(results.netYieldUSD ?? 0))})`,
-    `Projected Return Range: ${usd(Number(results.projectedReturnMinUSD ?? 0))} – ${usd(Number(results.projectedReturnMaxUSD ?? 0))}`,
-    `Yield vs Risk Offset: ${results.yieldRiskOffset != null ? Number(results.yieldRiskOffset).toFixed(3) : 'N/A'}`,
-  ]
-
-  if (results.ilPercent != null) {
-    lines.push(
-      `Impermanent Loss: ${Number(results.ilPercent).toFixed(2)}% (${usd(Number(results.ilUSD ?? 0))})`,
-      `LP Value: ${usd(Number(results.lpValueUSD ?? 0))}`,
-      `Hold Value: ${usd(Number(results.holdValueUSD ?? 0))}`,
-      `Fee Income: ${usd(Number(results.feeIncomeUSD ?? 0))}`,
-    )
-  }
-
-  lines.push('', 'Explain these results.')
-
-  return lines.join('\n')
-}
-
-// ── Response type ─────────────────────────────────────────────────────────────
+"summary": a single string of one to two sentences giving the overall risk verdict.`
 
 interface ExplainResponse {
-  summary:               string
-  whyRiskExists:         string
-  variableImpact:        string
-  assumptionSensitivity: string
+  worstCase: {
+    condition:   string
+    metricLabel: string
+    metricValue: string
+    detail:      string
+  }
+  whyRiskExists: {
+    title:   string
+    bullets: string[]
+  }
+  variableImpact: {
+    rows: Array<{ label: string; value: string }>
+  }
+  stressScenario: {
+    marketValue: string
+    lines:       string[]
+  }
+  summary: string
 }
-
-// ── Handler ───────────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -113,28 +43,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
-    console.error('ANTHROPIC_API_KEY environment variable is not set')
-    return res.status(500).json({ error: 'Server configuration error' })
+    return res.status(500).json({ error: 'Server configuration error: ANTHROPIC_API_KEY is not set' })
   }
 
+  const body          = req.body as Record<string, unknown>
+  const expertiseMode = body.expertiseMode === 'ADVANCED' ? 'ADVANCED' : 'NOVICE'
+  const userQuestion  = typeof body.userQuestion === 'string' ? body.userQuestion : null
+
+  const messageParts = [
+    `expertiseMode: ${expertiseMode}`,
+    '',
+    'Simulation results:',
+    JSON.stringify(body.results ?? {}, null, 2),
+    '',
+    userQuestion ? `Follow-up question: ${userQuestion}` : 'Explain these results.',
+  ]
+
   try {
-    const body = req.body as Record<string, unknown>
-    const mode = body.mode === 'advanced' ? 'advanced' : 'novice'
-
-    const systemPrompt = [
-      BASE_RULES,
-      mode === 'advanced' ? ADVANCED_INSTRUCTION : NOVICE_INSTRUCTION,
-    ].join('\n\n')
-
-    const userMessage = buildUserMessage(body)
-
-    const client = new Anthropic({ apiKey })
+    const client = new Anthropic({ apiKey, timeout: 25_000 })
 
     const message = await client.messages.create({
-      model:      'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system:     systemPrompt,
-      messages:   [{ role: 'user', content: userMessage }],
+      model:      'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system:     SYSTEM_PROMPT,
+      messages:   [{ role: 'user', content: messageParts.join('\n') }],
     })
 
     const block = message.content[0]
@@ -149,14 +81,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error('Anthropic response was not valid JSON')
     }
 
-    return res.status(200).json({
-      summary:               parsed.summary               ?? '',
-      whyRiskExists:         parsed.whyRiskExists         ?? '',
-      variableImpact:        parsed.variableImpact        ?? '',
-      assumptionSensitivity: parsed.assumptionSensitivity ?? '',
-    })
-  } catch (err) {
-    console.error('Anthropic API error:', err)
-    return res.status(500).json({ error: 'Failed to generate explanation' })
+    return res.status(200).json(parsed)
+  } catch (err: unknown) {
+    const e = err as { status?: number; message?: string; error?: { type?: string; message?: string } }
+
+    console.error('[explain] Anthropic call failed')
+    console.error('[explain] status:', e.status ?? 'none')
+    console.error('[explain] error body:', JSON.stringify(e.error ?? null))
+    console.error('[explain] message:', e.message ?? String(err))
+
+    let responseError: string
+    if (e.status != null) {
+      const type   = e.error?.type    ?? ''
+      const detail = e.error?.message ?? e.message ?? ''
+      const parts  = [type, detail].filter(Boolean).join(' — ')
+      responseError = parts
+        ? `Anthropic API error (status ${e.status}): ${parts}`
+        : `Anthropic API error (status ${e.status})`
+    } else if (err instanceof Error) {
+      responseError = err.message
+    } else {
+      responseError = 'Failed to reach explanation service'
+    }
+
+    return res.status(500).json({ error: responseError })
   }
 }
