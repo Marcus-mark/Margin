@@ -7,10 +7,10 @@ Instead of executing blind decisions in volatile markets, MARGIN introduces a **
 ---
 
 ## 🔴 Live Product
-[[Add your live URL here](https://margin-gdmf.vercel.app/)]
+[[Live Product](https://margin-gdmf.vercel.app/)]
 
 ## 📄 Case Study
-[[Add your portfolio URL here](https://mark-builds.vercel.app/work/margin)]
+[[Case Study](https://mark-builds.vercel.app/work/margin)]
 
 ---
 
