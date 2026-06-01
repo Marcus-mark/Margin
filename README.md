@@ -1,73 +1,84 @@
-# React + TypeScript + Vite
+# MARGIN — AI DeFi Decision Engine
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+MARGIN is an AI-powered decision system that helps users simulate market scenarios, understand risk exposure, and evaluate portfolio outcomes before committing capital.
 
-Currently, two official plugins are available:
+Instead of executing blind decisions in volatile markets, MARGIN introduces a **pre-execution intelligence layer**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🔴 Live Product
+[[Add your live URL here](https://margin-gdmf.vercel.app/)]
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 📄 Case Study
+[[Add your portfolio URL here](https://mark-builds.vercel.app/work/margin)]
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## The Problem
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+DeFi users make high-stakes financial decisions with incomplete visibility.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Key challenges:
+- No clear understanding of downside risk before execution
+- Fragmented information across platforms
+- Emotional decision-making under volatility
+- Lack of scenario simulation before committing capital
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## The Solution
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+MARGIN introduces a structured decision layer before execution.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+It allows users to:
+- Simulate market conditions (bull, bear, crash scenarios)
+- Visualize portfolio exposure in real time
+- Understand potential outcomes before committing capital
+- Make decisions based on structured risk insight, not emotion
+
+---
+
+## Key Features
+
+- Scenario-based simulation engine
+- Portfolio risk exposure visualization
+- Outcome forecasting under market conditions
+- Decision-first interface architecture
+- AI-assisted interpretation layer
+
+---
+
+## Design Decisions
+
+MARGIN was designed around a core principle:
+
+> Users should understand consequences before they act.
+
+To achieve this, the interface prioritizes:
+- Clarity over density
+- Decision sequencing over data dumping
+- Risk transparency over optimistic abstraction
+- Progressive disclosure of complex financial states
+
+---
+
+## Tech Stack
+
+- Claude Code (development)
+- React
+- Tailwind CSS
+- Next.js
+- Vercel (deployment)
+
+---
+
+## Status
+
+Live product — actively iterated based on user feedback.
+
+---
+
+## Author
+
+Built by Mark Marcus  
+Product Designer & Builder  
